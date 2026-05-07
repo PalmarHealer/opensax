@@ -54,25 +54,29 @@
   <section class="overflow-auto px-6 py-6">
     {#if !data.group}
       <p class="text-center text-sm text-zinc-500">Keine Gruppe gewählt.</p>
-    {:else if data.thread && data.root}
+    {:else if data.thread}
       <div class="mx-auto max-w-3xl space-y-3">
-        <article class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5">
-          <h2 class="text-lg font-semibold">{data.root.title}</h2>
-          <p class="mt-1 text-xs text-zinc-500">
-            <span class="font-medium text-zinc-400">{authorName(data.root)}</span>
-            <span> · {fmt(data.root.created)}</span>
-          </p>
-          {#if looksHtml(data.root.text ?? "")}
-            <div class="prose prose-invert prose-sm mt-3 max-w-none break-words leading-relaxed">{@html sanitizeHtml(data.root.text ?? "")}</div>
-          {:else}
-            <div class="mt-3 break-words text-sm leading-relaxed text-zinc-200">{@html linkifyPlain(data.root.text ?? "")}</div>
-          {/if}
-        </article>
+        {#if data.root}
+          <article class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5">
+            <h2 class="text-lg font-semibold">{data.root.title}</h2>
+            <p class="mt-1 text-xs text-zinc-500">
+              <span class="font-medium text-zinc-400"><PersonChip name={(data.root as any)?.created?.user?.name_hr ?? (data.root as any)?.author?.name_hr} login={(data.root as any)?.created?.user?.login ?? (data.root as any)?.author?.login} /></span>
+              <span> · {fmt(data.root.created)}</span>
+            </p>
+            {#if looksHtml(data.root.text ?? "")}
+              <div class="prose prose-invert prose-sm mt-3 max-w-none break-words leading-relaxed">{@html sanitizeHtml(data.root.text ?? "")}</div>
+            {:else}
+              <div class="mt-3 break-words text-sm leading-relaxed text-zinc-200">{@html linkifyPlain(data.root.text ?? "")}</div>
+            {/if}
+          </article>
+        {:else}
+          <p class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5 text-sm text-zinc-500">Thread-Inhalt nicht verfügbar.</p>
+        {/if}
         {#each data.replies as r}
           {#if r.id !== data.thread}
             <article class="ml-6 rounded-xl border border-zinc-800 bg-zinc-900/20 p-4">
               <p class="text-xs text-zinc-500">
-                <span class="font-medium text-zinc-400">{authorName(r)}</span>
+                <span class="font-medium text-zinc-400"><PersonChip name={(r as any)?.created?.user?.name_hr ?? (r as any)?.author?.name_hr} login={(r as any)?.created?.user?.login ?? (r as any)?.author?.login} /></span>
                 <span> · {fmt(r.created)}</span>
               </p>
               {#if looksHtml(r.text ?? "")}
@@ -89,20 +93,23 @@
     {:else}
       <div class="mx-auto max-w-3xl space-y-2">
         {#each data.threads as t}
-          <button
-            class="group flex w-full items-start justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-left transition hover:bg-zinc-900/60"
-            onclick={() => openThread(t.id)}
-          >
+          <div class="group flex items-start justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 transition hover:bg-zinc-900/60">
             <div class="min-w-0 flex-1">
-              <h2 class="truncate text-sm font-semibold">{t.title}</h2>
+              <button
+                type="button"
+                class="block w-full cursor-pointer truncate text-left text-sm font-semibold hover:underline"
+                onclick={() => openThread(t.id)}
+              >{t.title}</button>
               <p class="mt-1 truncate text-xs text-zinc-500">
                 <span class="text-zinc-400"><PersonChip name={(t as any)?.created?.user?.name_hr ?? (t as any)?.author?.name_hr} login={(t as any)?.created?.user?.login ?? (t as any)?.author?.login} /></span>
                 <span> · {fmt(t.created)}</span>
                 {#if t.reply_count}<span> · {t.reply_count} Antworten</span>{/if}
               </p>
             </div>
-            <Icon name="chevron-right" size={16} />
-          </button>
+            <button type="button" class="cursor-pointer text-zinc-500 hover:text-zinc-200" onclick={() => openThread(t.id)} aria-label="Öffnen">
+              <Icon name="chevron-right" size={16} />
+            </button>
+          </div>
         {:else}
           <p class="py-12 text-center text-sm text-zinc-500">Keine Themen.</p>
         {/each}

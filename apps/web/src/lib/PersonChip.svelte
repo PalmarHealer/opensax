@@ -88,9 +88,7 @@
       </div>
     </div>
 
-    {#if loading}
-      <p class="text-xs text-zinc-500">Lade Profil…</p>
-    {:else if profile}
+    {#if profile}
       <dl class="mb-3 space-y-1 text-xs text-zinc-400">
         {#if profile.position}<div><dt class="inline text-zinc-500">Position: </dt><dd class="inline text-zinc-300">{profile.position}</dd></div>{/if}
         {#if profile.department}<div><dt class="inline text-zinc-500">Bereich: </dt><dd class="inline text-zinc-300">{profile.department}</dd></div>{/if}

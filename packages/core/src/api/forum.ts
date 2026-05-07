@@ -25,7 +25,7 @@ export class ForumApi {
   }
   async get(group: string, id: string): Promise<ForumEntry> {
     const r = await this.session.call("get_entry", { id }, this.focus(group));
-    return r as ForumEntry;
+    return ((r.entry as ForumEntry) ?? (r as ForumEntry));
   }
   async post(group: string, entry: { title: string; text: string; parent_id?: string }): Promise<ForumEntry> {
     const r = await this.session.call("add_entry", entry, this.focus(group));

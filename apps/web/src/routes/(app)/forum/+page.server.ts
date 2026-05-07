@@ -20,10 +20,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 
   if (thread) {
-    const [root, replies] = await Promise.all([
+    const [rootDirect, replies] = await Promise.all([
       c.forum.get(group, thread).catch(() => null),
       c.forum.list(group, thread).catch(() => []),
     ]);
+    // Some LernSax instances return the root as the first list entry; if
+    // get_entry didn't surface a usable record, fall back to the list.
+    const usable = rootDirect && (rootDirect.title || rootDirect.text) ? rootDirect : null;
+    const root = usable ?? replies.find((r) => r.id === thread) ?? null;
     return { threads: [], replies, root, group, thread };
   }
 
