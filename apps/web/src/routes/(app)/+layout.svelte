@@ -67,9 +67,9 @@
   <!-- ─── Top navigation layout ────────────────────────────────────────── -->
   <div class="grid h-full" style="grid-template-rows: auto 1fr; grid-template-columns: {showSidebar ? '240px 1fr' : '1fr'};">
     <header class="col-span-full flex items-center justify-between gap-4 border-b border-zinc-800 bg-zinc-950 px-4 py-2">
-      <a href="/" class="flex shrink-0 items-center gap-2 rounded-md px-2 py-1 hover:bg-zinc-900">
-        <span class="grid h-7 w-7 place-items-center rounded-xl bg-indigo-500/10 text-indigo-300">
-          <Icon name="home" size={16} />
+      <a href="/" class="flex shrink-0 items-center gap-2 rounded-md px-1 py-1 hover:bg-zinc-900">
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-indigo-500/10 text-indigo-300">
+          <Icon name="home" size={18} />
         </span>
         <span class="text-sm font-semibold tracking-tight">OpenSax</span>
       </a>

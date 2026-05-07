@@ -27,6 +27,9 @@ html.light .text-zinc-500 { color: rgb(113 113 122 / var(--tw-text-opacity, 1));
 html.light .text-zinc-600 { color: rgb(161 161 170 / var(--tw-text-opacity, 1)); }
 html.light .border-zinc-800, html.light .border-zinc-900 { border-color: rgb(228 228 231 / var(--tw-border-opacity, 1)); }
 html.light .border-zinc-700 { border-color: rgb(212 212 216 / var(--tw-border-opacity, 1)); }
+html.light .bg-zinc-700 { background-color: rgb(212 212 216 / var(--tw-bg-opacity, 1)); }
+html.light .bg-zinc-950\/60, html.light .bg-zinc-950\/50 { background-color: rgb(250 250 250 / var(--tw-bg-opacity, 1)); }
+html.light .text-zinc-700 { color: rgb(82 82 91); }
 html.light .divide-zinc-900 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(228 228 231 / 1); }
 html.light .hover\:bg-zinc-900:hover, html.light .hover\:bg-zinc-900\/60:hover, html.light .hover\:bg-zinc-900\/50:hover, html.light .hover\:bg-zinc-900\/40:hover { background-color: rgb(244 244 245); }
 html.light .hover\:bg-zinc-800:hover, html.light .hover\:bg-zinc-800\/60:hover { background-color: rgb(228 228 231); }
