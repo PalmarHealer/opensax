@@ -52,9 +52,9 @@
   }
 </script>
 
-<div class="grid h-full" style="grid-template-columns: 240px 380px 1fr">
+<div class="grid h-full min-h-0" style="grid-template-rows: minmax(0,1fr); grid-template-columns: 240px 380px 1fr">
   <!-- Folder rail -->
-  <aside class="flex h-full flex-col border-r border-zinc-800 bg-zinc-900/30 px-2 py-3">
+  <aside class="flex h-full min-h-0 flex-col overflow-auto border-r border-zinc-800 bg-zinc-900/30 px-2 py-3">
     <button
       onclick={() => composeStore.openNew()}
       class="mx-1 mb-3 flex items-center justify-center gap-2 rounded-md bg-indigo-500 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-400"
@@ -98,7 +98,7 @@
   </aside>
 
   <!-- Message list -->
-  <section class="flex h-full min-w-0 flex-col border-r border-zinc-800">
+  <section class="flex h-full min-h-0 min-w-0 flex-col border-r border-zinc-800">
     <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-2.5">
       {#if selected.size > 0}
         <div class="flex items-center gap-2">

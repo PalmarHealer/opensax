@@ -35,7 +35,7 @@
     <div class="flex items-center gap-3">
       {#if data.thread}
         <button class="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" onclick={() => openThread(null)} aria-label="Zurück">
-          <Icon name="arrow-left" size={18} />
+          <Icon name="chevron-left" size={18} />
         </button>
       {/if}
       <h1 class="text-lg font-semibold tracking-tight">Forum</h1>
