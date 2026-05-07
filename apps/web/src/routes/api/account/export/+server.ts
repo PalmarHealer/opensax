@@ -1,0 +1,45 @@
+import { error } from "@sveltejs/kit";
+import type { RequestHandler } from "./$types";
+import { getCredentialsForSession } from "$lib/server/sessionStore";
+import { listForUser } from "$lib/server/connectionStore";
+
+const COOKIE = "lernsax_sid";
+
+/**
+ * Full data dump for the calling user — credentials are decrypted on the
+ * fly so the user can take them with them. Connection records expose only
+ * the hash of any access tokens (the bare tokens are never persisted).
+ */
+export const GET: RequestHandler = async ({ cookies }) => {
+  const sid = cookies.get(COOKIE);
+  if (!sid) throw error(401, "no session");
+  const creds = getCredentialsForSession(sid);
+  if (!creds) throw error(404, "session not found");
+
+  const connections = listForUser(sid);
+  const dump = {
+    exported_at: new Date().toISOString(),
+    note: "This is everything OpenSax stores about your account. The credentials below were AES-256-GCM-encrypted at rest and decrypted just for this export.",
+    credentials: { email: creds.email, password: creds.password },
+    connections: connections.map((c) => ({
+      id: c.id,
+      client_name: c.client_name,
+      client_id: c.client_id,
+      redirect_uris: c.redirect_uris,
+      scopes: c.scopes,
+      created_at: c.created_at,
+      last_used_at: c.last_used_at,
+      expires_at: c.expires_at,
+      access_token_sha256: c.token_hash,
+      refresh_token_sha256: c.refresh_hash ?? null,
+    })),
+  };
+
+  return new Response(JSON.stringify(dump, null, 2), {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="opensax-account-${new Date().toISOString().slice(0, 10)}.json"`,
+      "cache-control": "no-store",
+    },
+  });
+};

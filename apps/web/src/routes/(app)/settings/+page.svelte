@@ -10,6 +10,38 @@
   let { data, form } = $props();
   const p = $derived(data.profile);
 
+  interface StorageInfo {
+    session: { present: boolean; ttl_days: number; cookie: { name: string; http_only: boolean; secure: boolean; same_site: string }; stored: string[] };
+    connections: { count: number; ttl_days: number | null; stored: string[]; records: Array<{ id: string; client_name: string; scopes: string[]; created_at: number; last_used_at: number }> };
+    cache: Record<string, { ttl_seconds?: number; ttl_minutes?: string | number; scope: string; stored: string[] }>;
+    not_stored: string[];
+  }
+  let storage = $state<StorageInfo | null>(null);
+  let storageLoading = $state(false);
+  let confirming = $state(false);
+  async function loadStorage() {
+    if (storage || storageLoading) return;
+    storageLoading = true;
+    try {
+      const r = await fetch("/api/account/storage");
+      if (r.ok) storage = await r.json();
+    } finally { storageLoading = false; }
+  }
+  $effect(() => {
+    if (tab === "account") loadStorage();
+  });
+  function downloadExport() {
+    window.location.href = "/api/account/export";
+  }
+  async function destroyAccount() {
+    const r = await fetch("/api/account/destroy", { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    window.location.href = j.redirect ?? "/login";
+  }
+  function fmtTs(ms: number): string {
+    return new Date(ms).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  }
+
   type Tab = "profile" | "mail" | "connections" | "navigation" | "account";
   const TABS: ReadonlySet<Tab> = new Set(["profile", "mail", "connections", "navigation", "account"]);
   const tab = $derived.by<Tab>(() => {
@@ -466,6 +498,81 @@
             onclick={async () => { await fetch("/api/logout", { method: "POST" }); window.location.href = "/login"; }}
             class="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-1.5 text-sm font-medium text-red-300 hover:bg-red-500/20"
           >Abmelden</button>
+        </section>
+
+        <section class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+          <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">Daten</h3>
+
+          {#if !storage}
+            <p class="text-sm text-zinc-500">{storageLoading ? "Lade…" : ""}</p>
+          {:else}
+            <div class="space-y-4 text-sm">
+              <div>
+                <p class="font-medium">Session ({storage.session.ttl_days} Tage)</p>
+                <p class="text-xs text-zinc-500">
+                  Auth-Cookie <code>{storage.session.cookie.name}</code> · HttpOnly · Secure · SameSite={storage.session.cookie.same_site}.
+                  Gespeichert: {storage.session.stored.join(", ")}.
+                </p>
+              </div>
+
+              <div>
+                <p class="font-medium">OAuth-Verbindungen ({storage.connections.count})</p>
+                <p class="text-xs text-zinc-500">
+                  Gespeichert: {storage.connections.stored.join(", ")}.
+                </p>
+                {#if storage.connections.records.length}
+                  <ul class="mt-2 space-y-1 text-xs text-zinc-400">
+                    {#each storage.connections.records as c}
+                      <li>· {c.client_name} — letzte Nutzung {fmtTs(c.last_used_at)}</li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+
+              <div>
+                <p class="font-medium">Cache (in-memory, kein Disk)</p>
+                <ul class="mt-1 space-y-1 text-xs text-zinc-500">
+                  {#each Object.entries(storage.cache) as [name, c]}
+                    <li>
+                      · <span class="text-zinc-400">{name}</span>
+                      — TTL {c.ttl_seconds ? `${c.ttl_seconds}s` : c.ttl_minutes ? `${c.ttl_minutes} min` : "—"},
+                      {c.scope}.
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+
+              <div>
+                <p class="font-medium">Wird nicht gespeichert</p>
+                <ul class="mt-1 space-y-1 text-xs text-zinc-500">
+                  {#each storage.not_stored as line}<li>· {line}</li>{/each}
+                </ul>
+              </div>
+            </div>
+          {/if}
+
+          <div class="mt-5 flex flex-wrap gap-2">
+            <button
+              onclick={downloadExport}
+              class="rounded-md border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-sm font-medium hover:bg-zinc-800"
+            >Daten herunterladen</button>
+            {#if !confirming}
+              <button
+                onclick={() => (confirming = true)}
+                class="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-1.5 text-sm font-medium text-red-300 hover:bg-red-500/20"
+              >Alle Daten löschen</button>
+            {:else}
+              <span class="text-sm text-zinc-400">Sicher? Das löscht Session & Verbindungen.</span>
+              <button
+                onclick={destroyAccount}
+                class="rounded-md border border-red-500 bg-red-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-400"
+              >Endgültig löschen</button>
+              <button
+                onclick={() => (confirming = false)}
+                class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100"
+              >Abbrechen</button>
+            {/if}
+          </div>
         </section>
       {/if}
     </div>
