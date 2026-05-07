@@ -89,6 +89,9 @@
         {busy ? "Bitte warten…" : "Einloggen"}
       </button>
 
+      <p class="text-center text-xs text-zinc-500">
+        Credentials werden serverseitig verschlüsselt gespeichert.
+      </p>
     </form>
   </div>
 </div>
