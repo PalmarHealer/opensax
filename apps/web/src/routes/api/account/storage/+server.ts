@@ -5,8 +5,9 @@ import { listForUser } from "$lib/server/connectionStore";
 const COOKIE = "lernsax_sid";
 
 /**
- * Inventory of what the server has on file for the calling user.
- * No credentials are returned here — see /api/account/export for those.
+ * Bestandsaufnahme dessen, was der Server für die anrufende Person
+ * speichert. Anmeldedaten werden hier *nicht* zurückgegeben — dafür gibt
+ * es /api/account/export.
  */
 export const GET: RequestHandler = async ({ cookies }) => {
   const sid = cookies.get(COOKIE);
@@ -20,25 +21,24 @@ export const GET: RequestHandler = async ({ cookies }) => {
 
   return json({
     session: {
-      // The cookie itself confirms a session exists; we don't echo the sid.
       present: !!sid,
       ttl_days: 30,
       cookie: { name: COOKIE, http_only: true, secure: true, same_site: "Lax" },
-      stored: ["AES-256-GCM-encrypted LernSax credentials", "createdAt", "lastSeen"],
+      stored: ["AES-256-GCM-verschlüsselte LernSax-Anmeldedaten", "Erstellt-Zeitstempel", "Letzter-Zugriff-Zeitstempel"],
     },
     connections: {
       count: connections.length,
       ttl_days: null,
-      stored: ["SHA-256 token hash (the bare token is never persisted)", "client name", "scopes", "timestamps"],
+      stored: ["SHA-256-Hash des Tokens (das Token selbst wird nie gespeichert)", "Client-Name", "Berechtigungen", "Zeitstempel"],
       records: connections,
     },
     cache: {
-      contacts: { ttl_seconds: 60, scope: "in-memory, per-user", stored: ["login", "display name", "online flag", "groups"] },
-      lernsax_session: { ttl_minutes: "≈30 (LernSax-side)", scope: "in-memory client object", stored: ["LernSax session id"] },
+      contacts: { ttl_seconds: 60, scope: "im Arbeitsspeicher, pro Benutzer", stored: ["Login", "Anzeigename", "Online-Flag", "Gruppen"] },
+      lernsax_session: { ttl_minutes: "≈30 (LernSax-seitig)", scope: "im Arbeitsspeicher, Client-Objekt", stored: ["LernSax-Session-ID"] },
     },
     not_stored: [
-      "Mail bodies, attachments, files, calendar entries, tasks (always fetched live from LernSax on demand)",
-      "Browser preferences (theme, nav layout) — those live in localStorage in your browser, not on the server",
+      "Mail-Inhalte, Anhänge, Dateien, Kalender-Einträge, Aufgaben (werden bei jeder Anfrage live von LernSax geholt)",
+      "Browser-Einstellungen (Theme, Navigations-Layout) — die liegen im localStorage deines Browsers, nicht auf dem Server",
     ],
   });
 };

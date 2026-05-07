@@ -7,6 +7,8 @@
   let password = $state("");
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let cookiesOk = $state(false);
+  let cookieInfoOpen = $state(false);
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -68,9 +70,20 @@
         <p class="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>
       {/if}
 
+      <label class="flex items-center gap-2 text-xs text-zinc-400">
+        <input type="checkbox" bind:checked={cookiesOk} required class="h-4 w-4 accent-indigo-500" />
+        <span>Cookies zulassen</span>
+        <button
+          type="button"
+          onclick={() => (cookieInfoOpen = true)}
+          class="grid h-4 w-4 cursor-pointer place-items-center rounded-full border border-zinc-700 text-[10px] text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+          aria-label="Cookie-Info"
+        >?</button>
+      </label>
+
       <button
         type="submit"
-        disabled={busy}
+        disabled={busy || !cookiesOk}
         class="w-full rounded-lg bg-indigo-500 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
       >
         {busy ? "Bitte warten…" : "Einloggen"}
@@ -82,3 +95,23 @@
     </form>
   </div>
 </div>
+
+{#if cookieInfoOpen}
+  <div class="fixed inset-0 z-40 bg-black/60" onclick={() => (cookieInfoOpen = false)} role="presentation"></div>
+  <div class="fixed left-1/2 top-1/2 z-50 w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl" role="dialog">
+    <h2 class="mb-2 text-base font-semibold">Wofür Cookies?</h2>
+    <p class="text-sm text-zinc-300">
+      OpenSax verwendet Cookies ausschließlich funktional — kein Tracking, keine Analytics, keine Drittanbieter.
+    </p>
+    <ul class="mt-3 space-y-2 text-sm text-zinc-300">
+      <li><span class="font-medium">lernsax_sid</span> <span class="text-xs text-zinc-500">(HttpOnly · Secure · SameSite=Lax)</span><br /><span class="text-xs text-zinc-400">Session-Cookie. Verknüpft den Browser mit der serverseitig verschlüsselten Anmeldung. Ohne diesen Cookie ist kein Login möglich. Lebensdauer: 30 Tage oder bis zum Abmelden.</span></li>
+      <li><span class="font-medium">localStorage</span> <span class="text-xs text-zinc-500">(im Browser, kein Server)</span><br /><span class="text-xs text-zinc-400">Speichert nur deine Theme- und Navigations-Einstellungen. Wird nie an den Server geschickt.</span></li>
+    </ul>
+    <p class="mt-3 text-xs text-zinc-500">
+      Es werden keine Werbe- oder Tracking-Cookies gesetzt. Daten kannst du jederzeit unter Einstellungen → Account → Daten herunterladen oder löschen.
+    </p>
+    <div class="mt-4 flex justify-end">
+      <button onclick={() => (cookieInfoOpen = false)} class="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400">Verstanden</button>
+    </div>
+  </div>
+{/if}

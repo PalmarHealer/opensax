@@ -508,9 +508,9 @@
           {:else}
             <div class="space-y-4 text-sm">
               <div>
-                <p class="font-medium">Session ({storage.session.ttl_days} Tage)</p>
+                <p class="font-medium">Sitzung ({storage.session.ttl_days} Tage gültig)</p>
                 <p class="text-xs text-zinc-500">
-                  Auth-Cookie <code>{storage.session.cookie.name}</code> · HttpOnly · Secure · SameSite={storage.session.cookie.same_site}.
+                  Anmelde-Cookie <code>{storage.session.cookie.name}</code> · HttpOnly · Secure · SameSite={storage.session.cookie.same_site}.
                   Gespeichert: {storage.session.stored.join(", ")}.
                 </p>
               </div>
@@ -530,12 +530,12 @@
               </div>
 
               <div>
-                <p class="font-medium">Cache (in-memory, kein Disk)</p>
+                <p class="font-medium">Zwischenspeicher (nur Arbeitsspeicher, nichts auf der Festplatte)</p>
                 <ul class="mt-1 space-y-1 text-xs text-zinc-500">
                   {#each Object.entries(storage.cache) as [name, c]}
                     <li>
                       · <span class="text-zinc-400">{name}</span>
-                      — TTL {c.ttl_seconds ? `${c.ttl_seconds}s` : c.ttl_minutes ? `${c.ttl_minutes} min` : "—"},
+                      — Gültigkeit {c.ttl_seconds ? `${c.ttl_seconds}s` : c.ttl_minutes ? `${c.ttl_minutes} min` : "—"},
                       {c.scope}.
                     </li>
                   {/each}
@@ -562,7 +562,7 @@
                 class="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-1.5 text-sm font-medium text-red-300 hover:bg-red-500/20"
               >Alle Daten löschen</button>
             {:else}
-              <span class="text-sm text-zinc-400">Sicher? Das löscht Session & Verbindungen.</span>
+              <span class="text-sm text-zinc-400">Sicher? Das löscht Sitzung &amp; Verbindungen.</span>
               <button
                 onclick={destroyAccount}
                 class="rounded-md border border-red-500 bg-red-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-400"

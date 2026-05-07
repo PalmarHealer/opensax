@@ -19,7 +19,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
   const connections = listForUser(sid);
   const dump = {
     exported_at: new Date().toISOString(),
-    note: "This is everything OpenSax stores about your account. The credentials below were AES-256-GCM-encrypted at rest and decrypted just for this export.",
+    note: "Vollständiger Export aller Daten, die OpenSax zu deinem Account speichert. Die Anmeldedaten unten lagen verschlüsselt (AES-256-GCM) auf dem Server und wurden nur für diesen Export entschlüsselt.",
     credentials: { email: creds.email, password: creds.password },
     connections: connections.map((c) => ({
       id: c.id,
