@@ -89,9 +89,6 @@
         {busy ? "Bitte warten…" : "Einloggen"}
       </button>
 
-      <p class="text-center text-xs text-zinc-500">
-        Credentials werden serverseitig verschlüsselt gespeichert.{#if data.secureContext} Cookie ist HttpOnly + Secure.{/if}
-      </p>
     </form>
   </div>
 </div>
