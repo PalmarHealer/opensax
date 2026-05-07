@@ -13,6 +13,9 @@
   let loading = $state(false);
 
   const display = $derived(name?.trim() || login || "—");
+  // Messenger only routes between LernSax accounts; external mail addrs
+  // can't be chat partners.
+  const canChat = $derived(!!login && /\.lernsax\.de$/i.test(login));
 
   async function loadProfile() {
     if (!login || profile || loading) return;
@@ -71,7 +74,7 @@
 {#if open}
   <div class="fixed inset-0 z-40" onclick={hide} role="presentation"></div>
   <div
-    class="fixed z-50 w-72 rounded-xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
+    class="fixed z-50 w-72 cursor-default rounded-xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
     style={popoverStyle}
     role="dialog"
   >
@@ -96,12 +99,16 @@
     {/if}
 
     <div class="flex flex-col gap-1">
-      <button onclick={mailTo} class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-zinc-900">
-        <Icon name="mail" size={14} /> Mail an {display}
+      <button onclick={mailTo} class="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-zinc-900">
+        <span class="shrink-0"><Icon name="mail" size={14} /></span>
+        <span class="min-w-0 flex-1 truncate">Mail an {display}</span>
       </button>
-      <button onclick={chatWith} class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-zinc-900">
-        <Icon name="message-circle" size={14} /> Chat starten
-      </button>
+      {#if canChat}
+        <button onclick={chatWith} class="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-zinc-900">
+          <span class="shrink-0"><Icon name="message-circle" size={14} /></span>
+          <span>Chat starten</span>
+        </button>
+      {/if}
     </div>
   </div>
 {/if}
