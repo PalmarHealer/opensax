@@ -7,7 +7,7 @@ const groupFromForm = (data: FormData): string | undefined =>
 export const load: PageServerLoad = async ({ locals, url }) => {
   const c = locals.client!;
   let group = url.searchParams.get("group");
-  const thread = url.searchParams.get("thread");
+  const pageId = url.searchParams.get("page");
 
   if (!group) {
     const first = c.groups()[0];
@@ -16,33 +16,39 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       u.searchParams.set("group", first.login);
       throw redirect(303, u.pathname + u.search);
     }
-    return { threads: [], replies: [], root: null, group: null, thread: null };
+    return { pages: [], current: null, group: null, pageId: null };
   }
 
-  if (thread) {
-    const [root, replies] = await Promise.all([
-      c.forum.get(group, thread).catch(() => null),
-      c.forum.list(group, thread).catch(() => []),
-    ]);
-    return { threads: [], replies, root, group, thread };
-  }
-
-  const threads = await c.forum.list(group).catch(() => []);
-  return { threads, replies: [], root: null, group, thread: null };
+  const pages = await c.wiki.list(group).catch(() => []);
+  const current = pageId ? await c.wiki.page(group, pageId).catch(() => null) : null;
+  return { pages, current, group, pageId };
 };
 
 export const actions: Actions = {
-  post: async ({ locals, request }) => {
+  create: async ({ locals, request }) => {
     const c = locals.client!;
     const data = await request.formData();
     const group = groupFromForm(data);
     if (!group) return fail(400, { error: "group required" });
     const title = data.get("title")?.toString().trim();
-    const text = data.get("text")?.toString().trim();
-    if (!title || !text) return fail(400, { error: "title+text required" });
-    const parent_id = data.get("parent_id")?.toString() || undefined;
+    const text = data.get("text")?.toString() ?? "";
+    if (!title) return fail(400, { error: "title required" });
     try {
-      await c.forum.post(group, { title, text, parent_id });
+      await c.wiki.create(group, { title, text });
+    } catch (e) { return fail(403, { error: (e as Error).message }); }
+    return { ok: true };
+  },
+  update: async ({ locals, request }) => {
+    const c = locals.client!;
+    const data = await request.formData();
+    const group = groupFromForm(data);
+    if (!group) return fail(400, { error: "group required" });
+    const id = data.get("id")?.toString();
+    if (!id) return fail(400, { error: "id required" });
+    const title = data.get("title")?.toString();
+    const text = data.get("text")?.toString();
+    try {
+      await c.wiki.update(group, id, { title, text });
     } catch (e) { return fail(403, { error: (e as Error).message }); }
     return { ok: true };
   },
@@ -54,7 +60,7 @@ export const actions: Actions = {
     const id = data.get("id")?.toString();
     if (!id) return fail(400, { error: "id required" });
     try {
-      await c.forum.remove(group, id);
+      await c.wiki.remove(group, id);
     } catch (e) { return fail(403, { error: (e as Error).message }); }
     return { ok: true };
   },

@@ -529,11 +529,46 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
   );
 
   server.tool(
-    "wiki_page",
+    "wiki_list",
+    "List wiki pages in a group.",
+    { ...CredsShape, group: z.string() },
+    async ({ email, password, group }) =>
+      withClient({ email, password }, async (c) => ok(await c.wiki.list(group))),
+  );
+
+  server.tool(
+    "wiki_read",
     "Read a wiki page.",
     { ...CredsShape, group: z.string(), id: z.string() },
     async ({ email, password, group, id }) =>
       withClient({ email, password }, async (c) => ok(await c.wiki.page(group, id))),
+  );
+
+  server.tool(
+    "wiki_create",
+    "Create a wiki page.",
+    { ...CredsShape, group: z.string(), title: z.string(), text: z.string() },
+    async ({ email, password, group, title, text }) =>
+      withClient({ email, password }, async (c) => ok(await c.wiki.create(group, { title, text }))),
+  );
+
+  server.tool(
+    "wiki_update",
+    "Update a wiki page.",
+    { ...CredsShape, group: z.string(), id: z.string(), title: z.string().optional(), text: z.string().optional() },
+    async ({ email, password, group, id, title, text }) =>
+      withClient({ email, password }, async (c) => ok(await c.wiki.update(group, id, { title, text }))),
+  );
+
+  server.tool(
+    "wiki_delete",
+    "Delete a wiki page.",
+    { ...CredsShape, group: z.string(), id: z.string() },
+    async ({ email, password, group, id }) =>
+      withClient({ email, password }, async (c) => {
+        await c.wiki.remove(group, id);
+        return ok({ ok: true });
+      }),
   );
 
   server.tool(
