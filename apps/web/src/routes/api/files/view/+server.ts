@@ -24,14 +24,7 @@ export const GET: RequestHandler = async ({ locals, url, fetch, request }) => {
   const range = request.headers.get("range");
   if (range) headers.range = range;
 
-  // LernSax sometimes returns download URLs with un-escaped `%` in filenames,
-  // which crashes SvelteKit's handleFetch (decodeURIComponent throws URIError).
-  // Re-encode defensively if the URL is not a valid URI sequence.
-  let safeUrl = downloadUrl;
-  try { decodeURIComponent(safeUrl); }
-  catch { try { safeUrl = encodeURI(decodeURI(downloadUrl)); } catch { /* fall through */ } }
-
-  const upstream = await fetch(safeUrl, { headers });
+  const upstream = await fetch(downloadUrl, { headers });
 
   if (!upstream.ok && upstream.status !== 206) {
     throw error(upstream.status, `upstream ${upstream.status}`);
