@@ -4,6 +4,7 @@
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
+  import PersonChip from "$lib/PersonChip.svelte";
   import { sanitizeHtml, linkifyPlain } from "$lib/linkify";
   import { BOARD_COLORS, boardColor } from "$lib/boardColors";
 
@@ -90,7 +91,7 @@
                     <h2 class="break-words text-base font-semibold">{e.title}</h2>
                   {/if}
                   <p class="mt-1 flex items-center gap-2 text-xs text-zinc-500">
-                    <span class="font-medium text-zinc-400">{e.created?.user?.name_hr ?? e.created?.user?.login ?? "—"}</span>
+                    <span class="font-medium text-zinc-400"><PersonChip name={e.created?.user?.name_hr} login={e.created?.user?.login} /></span>
                     <span>·</span>
                     <span>{fmt(e.created?.date)}</span>
                     {#if e.modified && e.modified.date && e.modified.date !== e.created?.date}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "$lib/Icon.svelte";
   import { composeStore } from "$lib/composeStore.svelte";
+  import RecipientPicker from "$lib/RecipientPicker.svelte";
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -61,32 +62,18 @@
     {#if !composeStore.minimized}
       <form onsubmit={send} class="flex flex-1 flex-col overflow-hidden">
         <div class="flex flex-col gap-1 border-b border-zinc-800 px-3 py-2">
-          <label class="flex items-center gap-2 text-sm">
+          <div class="flex items-center gap-2 text-sm">
             <span class="w-12 shrink-0 text-xs text-zinc-500">An</span>
-            <input
-              type="text"
-              required
-              bind:value={composeStore.draft.to}
-              class="flex-1 bg-transparent outline-none placeholder:text-zinc-600"
-              placeholder="empfaenger@…"
-            />
-          </label>
-          <label class="flex items-center gap-2 text-sm">
+            <RecipientPicker bind:value={composeStore.draft.to} placeholder="empfaenger@…" />
+          </div>
+          <div class="flex items-center gap-2 text-sm">
             <span class="w-12 shrink-0 text-xs text-zinc-500">CC</span>
-            <input
-              type="text"
-              bind:value={composeStore.draft.cc}
-              class="flex-1 bg-transparent outline-none placeholder:text-zinc-600"
-            />
-          </label>
-          <label class="flex items-center gap-2 text-sm">
+            <RecipientPicker bind:value={composeStore.draft.cc} />
+          </div>
+          <div class="flex items-center gap-2 text-sm">
             <span class="w-12 shrink-0 text-xs text-zinc-500">BCC</span>
-            <input
-              type="text"
-              bind:value={composeStore.draft.bcc}
-              class="flex-1 bg-transparent outline-none placeholder:text-zinc-600"
-            />
-          </label>
+            <RecipientPicker bind:value={composeStore.draft.bcc} />
+          </div>
           <label class="flex items-center gap-2 text-sm">
             <span class="w-12 shrink-0 text-xs text-zinc-500">Betreff</span>
             <input

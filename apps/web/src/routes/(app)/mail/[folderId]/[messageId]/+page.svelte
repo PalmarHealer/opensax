@@ -3,6 +3,7 @@
   import Icon from "$lib/Icon.svelte";
   import { linkifyPlain, sanitizeHtml } from "$lib/linkify";
   import { composeStore } from "$lib/composeStore.svelte";
+  import PersonChip from "$lib/PersonChip.svelte";
 
   let { data } = $props();
   const m = $derived(data.message);
@@ -68,7 +69,7 @@
 
   <h1 class="text-2xl font-semibold tracking-tight break-words">{m.subject ?? "(kein Betreff)"}</h1>
   <div class="mt-2 text-sm text-zinc-400">
-    Von <span class="text-zinc-200">{partyDisplay(m.from?.[0])}</span> · {fmt(m.date)}
+    Von <span class="text-zinc-200"><PersonChip name={m.from?.[0]?.name} login={m.from?.[0]?.addr} /></span> · {fmt(m.date)}
   </div>
   {#if m.to?.length}
     <div class="text-xs text-zinc-500">an {m.to.map((r) => r.addr).join(", ")}</div>

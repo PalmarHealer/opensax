@@ -4,6 +4,7 @@
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
+  import PersonChip from "$lib/PersonChip.svelte";
 
   type Entry = (typeof data.children)[number];
 
@@ -420,7 +421,7 @@
                   {e.type === "folder" ? fmtSize(e.aggregation?.size) : fmtSize(e.size)}
                 </td>
                 <td class="px-6 py-2.5 text-right text-zinc-400">
-                  <span class="truncate" title={e.created?.user?.login ?? ""}>{e.created?.user?.name_hr ?? "—"}</span>
+                  <span class="truncate" title={e.created?.user?.login ?? ""} onclick={(ev) => ev.stopPropagation()} role="presentation"><PersonChip name={e.created?.user?.name_hr} login={e.created?.user?.login} /></span>
                 </td>
                 <td class="px-2 py-2.5 text-right" onclick={(ev) => ev.stopPropagation()} onkeydown={(ev) => ev.stopPropagation()}>
                   {#if showMenu}

@@ -4,6 +4,7 @@
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
+  import PersonChip from "$lib/PersonChip.svelte";
 
   let { data } = $props();
 
@@ -116,7 +117,7 @@
     {:else}
       <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
         <div>
-          <p class="text-sm font-semibold">{partnerLabel(active)}</p>
+          <p class="text-sm font-semibold"><PersonChip name={partnerLabel(active)} login={active} /></p>
           <p class="text-[11px] text-zinc-500">{active}</p>
         </div>
         <button onclick={refresh} class="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
