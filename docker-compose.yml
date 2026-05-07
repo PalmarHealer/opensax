@@ -1,0 +1,70 @@
+services:
+  lernsax-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: lernsax-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      LERNSAX_WEB_SESSION_KEY: ${LERNSAX_WEB_SESSION_KEY:?set a 32+ char secret}
+      ORIGIN: ${WEB_ORIGIN:?set the public web URL, e.g. https://app.example.com}
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?set a long secret}
+      # Public URL the user's browser uses to load OnlyOffice's api.js
+      ONLYOFFICE_PUBLIC_URL: ${ONLYOFFICE_PUBLIC_URL:?set the public OnlyOffice URL}
+      # Docker-internal URL the DocumentServer uses to call our content/callback endpoints
+      WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://lernsax-web:3000}
+      OO_INTERNAL_HOST: ${OO_INTERNAL_HOST:-lernsax-onlyoffice}
+    ports:
+      # Bind to BIND_HOST so only the reverse proxy on the same network can
+      # reach us. Defaults to all interfaces — set BIND_HOST in .env to lock
+      # this down (e.g. a private/VPN IP).
+      - "${BIND_HOST:-0.0.0.0}:3001:3000"
+    volumes:
+      - lernsax-web-data:/app/data
+
+  lernsax-mcp:
+    build:
+      context: .
+      dockerfile: packages/mcp/Dockerfile
+    container_name: lernsax-mcp
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LERNSAX_MCP_TRANSPORT: streamable-http
+      LERNSAX_MCP_HTTP_HOST: 0.0.0.0
+      LERNSAX_MCP_HTTP_PORT: "8765"
+      LERNSAX_MCP_HTTP_PATH: "/mcp"
+      LERNSAX_MCP_IDLE_TTL_MS: "300000"
+      LERNSAX_DATA_DIR: /app/data
+      LERNSAX_WEB_SESSION_KEY: ${LERNSAX_WEB_SESSION_KEY:?set a 32+ char secret}
+      # Used to build the WWW-Authenticate resource_metadata URL on 401s.
+      WEB_ORIGIN: ${WEB_ORIGIN:?set the public web URL}
+    ports:
+      - "${BIND_HOST:-0.0.0.0}:8765:8765"
+    volumes:
+      - lernsax-web-data:/app/data
+
+  onlyoffice:
+    image: onlyoffice/documentserver:8.2
+    container_name: lernsax-onlyoffice
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?set a long secret}
+      JWT_HEADER: "Authorization"
+      JWT_IN_BODY: "true"
+      USE_UNAUTHORIZED_STORAGE: "true"
+    ports:
+      - "${BIND_HOST:-0.0.0.0}:3380:80"
+    volumes:
+      - onlyoffice-data:/var/www/onlyoffice/Data
+      - onlyoffice-logs:/var/log/onlyoffice
+      - onlyoffice-cache:/var/lib/onlyoffice/documentserver/App_Data/cache/files
+
+volumes:
+  lernsax-web-data:
+  onlyoffice-data:
+  onlyoffice-logs:
+  onlyoffice-cache:

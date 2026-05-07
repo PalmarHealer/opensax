@@ -1,0 +1,14 @@
+**/node_modules
+**/.svelte-kit
+**/dist
+**/build
+**/.env
+**/.env.local
+**/coverage
+**/*.log
+.git
+.idea
+.vscode
+docker-compose*.yml
+README.md
+Details.md

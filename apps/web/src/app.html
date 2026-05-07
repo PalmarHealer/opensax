@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de" class="dark h-full">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>OpenSax</title>
+    <script>
+      // No-flash theme init: read stored preference and apply class before paint.
+      (function () {
+        try {
+          var pref = localStorage.getItem("lernsax.theme.v1") || "system";
+          var sys = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          var eff = pref === "system" ? sys : pref;
+          var html = document.documentElement;
+          html.classList.remove("dark", "light");
+          html.classList.add(eff);
+          html.style.colorScheme = eff;
+        } catch (e) { /* noop */ }
+      })();
+    </script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover" class="h-full antialiased">
+    <div style="display: contents" class="h-full">%sveltekit.body%</div>
+  </body>
+</html>

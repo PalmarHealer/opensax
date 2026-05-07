@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+.env
+.env.local
+*.log
+.DS_Store
+.vscode/
+.idea/
+coverage/
+*.tsbuildinfo
+
+# Persistent volume data (encrypted sessions, OAuth connections, OnlyOffice
+# cache) — never goes into source control.
+.session-store/
+data/
+**/data/
+
+# Personal notes / pre-publish security audits — local only.
+audit.md
+tasks.md
