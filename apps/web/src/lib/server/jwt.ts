@@ -22,6 +22,12 @@ export function verifyJwt<T = Record<string, unknown>>(token: string, secret: st
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [h, p, s] = parts as [string, string, string];
+  try {
+    const header = JSON.parse(b64urlDecode(h).toString("utf8")) as { alg?: string; typ?: string };
+    if (header.alg !== "HS256") return null;
+  } catch {
+    return null;
+  }
   const expected = b64url(createHmac("sha256", secret).update(`${h}.${p}`).digest());
   const a = Buffer.from(s);
   const b = Buffer.from(expected);

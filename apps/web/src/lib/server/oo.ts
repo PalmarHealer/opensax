@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { signJwt, verifyJwt } from "./jwt";
 
 export interface OoToken {
@@ -12,7 +13,16 @@ export interface OoToken {
   name: string;
 }
 
-const SECRET = (process.env.ONLYOFFICE_JWT_SECRET ?? "936670e94645ed8a6abd0fb83ed3caa521e1413774b7df86").trim();
+const SECRET = (() => {
+  const env = process.env.ONLYOFFICE_JWT_SECRET?.trim();
+  if (env && env.length >= 32) return env;
+  if (process.env.NODE_ENV === "production") {
+    console.error("[oo] ONLYOFFICE_JWT_SECRET missing or shorter than 32 chars — refusing to start.");
+    process.exit(1);
+  }
+  console.warn("[oo] ONLYOFFICE_JWT_SECRET not set — using ephemeral key. OnlyOffice tokens won't survive restart.");
+  return randomBytes(32).toString("hex");
+})();
 const PUBLIC_URL = (process.env.ONLYOFFICE_PUBLIC_URL ?? "http://localhost:3380").replace(/\/+$/, "");
 const WEB_INTERNAL = (process.env.WEB_INTERNAL_URL ?? "http://lernsax-web:3000").replace(/\/+$/, "");
 

@@ -31,8 +31,16 @@ export const POST: RequestHandler = async ({ params, request, fetch }) => {
   if (!body.url) return json({ error: 0 });
 
   // The DocumentServer hands us back URLs that point to itself as it sees
-  // itself. Inside our docker network we need the service name.
+  // itself. Inside our docker network we need the service name. We accept
+  // *only* URLs whose host is OO's own hostname (or localhost, which we
+  // rewrite to it) — the URL is attacker-controllable from inside the OO
+  // container, so without this check it's an SSRF primitive.
   const ooHost = (process.env.OO_INTERNAL_HOST ?? "lernsax-onlyoffice").replace(/^https?:\/\//, "");
+  let parsed: URL;
+  try { parsed = new URL(body.url); } catch { return json({ error: 1, message: "bad url" }, { status: 400 }); }
+  const host = parsed.hostname.toLowerCase();
+  const allowed = host === ooHost.split(":")[0]?.toLowerCase() || host === "localhost" || host === "127.0.0.1";
+  if (!allowed) return json({ error: 1, message: "untrusted url host" }, { status: 400 });
   const fetchUrl = body.url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, `http://${ooHost}`);
 
   try {
@@ -51,11 +59,14 @@ export const POST: RequestHandler = async ({ params, request, fetch }) => {
     const breadcrumb = buildFileBreadcrumb(entries, claims.file_id);
     const segments = breadcrumb
       .filter((e) => e.id !== "/")
-      .map((e) => e.name)
-      .map((s) => encodeURIComponent(s).replace(/%2F/g, "%2F"));
+      .map((e) => e.name);
+    if (segments.some((s) => s.includes("/") || s.includes("\\") || s === "." || s === "..")) {
+      return json({ error: 1, message: "unsafe path segment" }, { status: 400 });
+    }
+    const encodedSegments = segments.map((s) => encodeURIComponent(s));
     const userOrGroup = claims.group ?? (client.whoami()?.login ?? "");
     if (!userOrGroup) return json({ error: 1, message: "no scope login" }, { status: 500 });
-    const webdavPath = `/${encodeURIComponent(userOrGroup)}/storage/${segments.join("/")}`;
+    const webdavPath = `/${encodeURIComponent(userOrGroup)}/storage/${encodedSegments.join("/")}`;
 
     await client.webdav.upload(webdavPath, buf, target.mime ?? "application/octet-stream");
     // The new file content makes our cached `entries` stale (size + modified

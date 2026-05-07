@@ -5,7 +5,7 @@ import { createSession, getClientForSession } from "$lib/server/sessionStore";
 
 const COOKIE = "lernsax_sid";
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request, cookies, url }) => {
   let body: { email?: string; password?: string };
   try {
     body = await request.json();
@@ -28,11 +28,17 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   }
 
   const sid = createSession({ email, password });
+  // Detect HTTPS via either the request URL or the proxy's X-Forwarded-Proto
+  // — NODE_ENV alone gives wrong answers behind TLS-terminating proxies.
+  const isSecure =
+    url.protocol === "https:" ||
+    request.headers.get("x-forwarded-proto") === "https" ||
+    process.env.NODE_ENV === "production";
   cookies.set(COOKIE, sid, {
     path: "/",
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecure,
     maxAge: 60 * 60 * 24 * 30, // 30 days
   });
 

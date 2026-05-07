@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SessionCache } from "@lernsax/core";
 import { buildServer, defaultCache } from "./server.js";
@@ -32,7 +33,10 @@ function checkLegacyToken(req: IncomingMessage): boolean {
   if (!AUTH_TOKEN) return true;
   const header = req.headers.authorization ?? "";
   if (!header.startsWith("Bearer ")) return false;
-  return header.slice(7).trim() === AUTH_TOKEN;
+  const presented = Buffer.from(header.slice(7).trim());
+  const expected = Buffer.from(AUTH_TOKEN);
+  if (presented.length !== expected.length) return false;
+  return timingSafeEqual(presented, expected);
 }
 
 function bearerChallenge(error?: string, description?: string): string {

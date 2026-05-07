@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
   const userName = user?.fullname ?? user?.email ?? userId;
 
   const contentToken = ooMintToken({ sub: "content", sid, file_id: id, group, name: file.name });
-  const callbackToken = ooMintToken({ sub: "callback", sid, file_id: id, group, name: file.name }, 24 * 3600);
+  const callbackToken = ooMintToken({ sub: "callback", sid, file_id: id, group, name: file.name }, 6 * 3600);
 
   // Unique per editor session — using a stable key tied to last-modified makes
   // OO refuse the doc forever once a save has been marked "forgotten" in its

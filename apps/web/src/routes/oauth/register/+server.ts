@@ -18,6 +18,17 @@ export const POST: RequestHandler = async ({ request }) => {
   if (redirect_uris.length === 0) {
     return json({ error: "invalid_redirect_uri" }, { status: 400 });
   }
+  // Public-client allowlist: HTTPS anywhere; HTTP only on loopback. Rejects
+  // exotic schemes (file:, javascript:, data:) and plain-HTTP phishing hosts.
+  for (const u of redirect_uris) {
+    let parsed: URL;
+    try { parsed = new URL(u); } catch { return json({ error: "invalid_redirect_uri", error_description: `bad URL: ${u}` }, { status: 400 }); }
+    const isHttps = parsed.protocol === "https:";
+    const isLoopbackHttp = parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]");
+    if (!isHttps && !isLoopbackHttp) {
+      return json({ error: "invalid_redirect_uri", error_description: `redirect_uri must be https: or http://localhost (got ${parsed.protocol}//${parsed.hostname})` }, { status: 400 });
+    }
+  }
   const c = registerClient({
     client_name: body.client_name ?? "Unnamed client",
     redirect_uris,

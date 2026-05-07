@@ -24,7 +24,14 @@ export const GET: RequestHandler = async ({ locals, url, fetch, request }) => {
   const range = request.headers.get("range");
   if (range) headers.range = range;
 
-  const upstream = await fetch(downloadUrl, { headers });
+  // LernSax sometimes returns download URLs with un-escaped `%` in filenames,
+  // which crashes SvelteKit's handleFetch (decodeURIComponent throws URIError).
+  // Re-encode defensively if the URL is not a valid URI sequence.
+  let safeUrl = downloadUrl;
+  try { decodeURIComponent(safeUrl); }
+  catch { try { safeUrl = encodeURI(decodeURI(downloadUrl)); } catch { /* fall through */ } }
+
+  const upstream = await fetch(safeUrl, { headers });
 
   if (!upstream.ok && upstream.status !== 206) {
     throw error(upstream.status, `upstream ${upstream.status}`);
@@ -33,7 +40,20 @@ export const GET: RequestHandler = async ({ locals, url, fetch, request }) => {
   // Filename for Content-Disposition header
   const cdMatch = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(upstream.headers.get("content-disposition") ?? "");
   const inferredName = cdMatch?.[1] ?? id.split("/").pop() ?? "file";
-  const disposition = wantDownload
+
+  // Anything user-controllable that the browser would *execute* in our origin
+  // (HTML, SVG with scripts, XML) is forced to download — otherwise a peer
+  // could upload .html into a shared LernSax folder and run script in our
+  // origin via this proxy. PDFs and images stay inline.
+  const upstreamCt = (upstream.headers.get("content-type") ?? "").toLowerCase();
+  const isActiveType =
+    upstreamCt.includes("text/html") ||
+    upstreamCt.includes("application/xhtml") ||
+    upstreamCt.includes("image/svg") ||
+    upstreamCt.includes("text/xml") ||
+    upstreamCt.includes("application/xml");
+  const forcedAttachment = wantDownload || isActiveType;
+  const disposition = forcedAttachment
     ? `attachment; filename="${encodeURIComponent(inferredName)}"`
     : `inline; filename="${encodeURIComponent(inferredName)}"`;
 
@@ -43,9 +63,11 @@ export const GET: RequestHandler = async ({ locals, url, fetch, request }) => {
     if (v) out.set(k, v);
   }
   out.set("content-disposition", disposition);
-  // Allow same-origin embedding & strip any inherited frame guards.
+  // Allow same-origin embedding & lock active content into a sandbox so an
+  // HTML/SVG file that slips past the attachment filter can't take over.
   out.set("x-frame-options", "SAMEORIGIN");
-  out.delete("content-security-policy");
+  out.set("content-security-policy", "default-src 'none'; sandbox; base-uri 'none'; frame-ancestors 'self'");
+  out.set("x-content-type-options", "nosniff");
   out.set("cache-control", "private, max-age=60");
 
   return new Response(upstream.body, {

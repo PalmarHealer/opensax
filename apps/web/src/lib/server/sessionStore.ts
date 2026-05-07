@@ -2,6 +2,7 @@ import { LernSaxClient, type Credentials } from "@lernsax/core";
 import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { listForUser, revoke } from "./connectionStore";
 
 const KEY = (() => {
   const env = process.env.LERNSAX_WEB_SESSION_KEY;
@@ -133,6 +134,13 @@ export function destroySession(id: string): void {
   if (s?.client) s.client.logout().catch(() => {});
   sessions.delete(id);
   unpersist(id);
+  // Revoke all OAuth connections tied to this session — otherwise their bearer
+  // tokens linger as inert files until a stale-cleanup ever runs.
+  try {
+    for (const conn of listForUser(id)) revoke(conn.id);
+  } catch (err) {
+    console.warn("[sessionStore] failed to revoke connections", err);
+  }
 }
 
 function decryptCreds(s: StoredSession): Credentials {

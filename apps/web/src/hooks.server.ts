@@ -1,5 +1,6 @@
 import type { Handle } from "@sveltejs/kit";
 import { getClientForSession, destroySession } from "$lib/server/sessionStore";
+import { clientIp, rateLimit } from "$lib/server/rateLimit";
 
 const COOKIE = "lernsax_sid";
 const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout"]);
@@ -7,7 +8,42 @@ const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout"]);
 // Endpoints we deliberately allow cross-origin POSTs to (OAuth machinery).
 const CSRF_BYPASS = new Set(["/oauth/token", "/oauth/register", "/oauth/revoke"]);
 
+interface RateRule { max: number; windowMs: number; keyByEmail?: boolean }
+const RATE_RULES: Array<{ match: (path: string, method: string) => boolean; rule: RateRule }> = [
+  { match: (p, m) => p === "/api/login" && m === "POST", rule: { max: 5, windowMs: 60_000, keyByEmail: true } },
+  { match: (p, m) => p === "/oauth/token" && m === "POST", rule: { max: 30, windowMs: 60_000 } },
+  { match: (p, m) => p === "/oauth/register" && m === "POST", rule: { max: 5, windowMs: 60_000 } },
+  { match: (p, m) => p === "/oauth/authorize" && m === "POST", rule: { max: 20, windowMs: 60_000 } },
+];
+
+async function rateLimitKeySuffix(rule: RateRule, request: Request): Promise<string> {
+  if (!rule.keyByEmail) return "";
+  try {
+    const cloned = request.clone();
+    const ct = cloned.headers.get("content-type") ?? "";
+    if (ct.includes("application/json")) {
+      const body = await cloned.json().catch(() => null) as { email?: string } | null;
+      if (body?.email) return `:${body.email.toLowerCase()}`;
+    }
+  } catch { /* ignore */ }
+  return "";
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
+  for (const { match, rule } of RATE_RULES) {
+    if (!match(event.url.pathname, event.request.method)) continue;
+    const ip = clientIp(event.request.headers, event.getClientAddress?.() ?? null);
+    const suffix = await rateLimitKeySuffix(rule, event.request);
+    const r = rateLimit(`${event.url.pathname}:${ip}${suffix}`, rule.max, rule.windowMs);
+    if (!r.ok) {
+      return new Response(JSON.stringify({ error: "rate_limited", retry_after: r.retryAfterSec }), {
+        status: 429,
+        headers: { "content-type": "application/json", "retry-after": String(r.retryAfterSec) },
+      });
+    }
+    break;
+  }
+
   // Re-implement SvelteKit's origin check for state-changing requests that
   // *aren't* part of the OAuth machinery, since we disabled the global check
   // in `svelte.config.js`.
@@ -60,5 +96,20 @@ export const handle: Handle = async ({ event, resolve }) => {
     return new Response(null, { status: 303, headers: { location: `/login?next=${encodeURIComponent(path)}` } });
   }
 
-  return resolve(event);
+  const response = await resolve(event);
+  // Defence-in-depth headers. The reverse proxy may set these too — these are
+  // a backstop so a misconfigured proxy doesn't silently drop them.
+  if (!response.headers.has("strict-transport-security")) {
+    response.headers.set("strict-transport-security", "max-age=63072000; includeSubDomains");
+  }
+  if (!response.headers.has("x-content-type-options")) {
+    response.headers.set("x-content-type-options", "nosniff");
+  }
+  if (!response.headers.has("referrer-policy")) {
+    response.headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  }
+  if (!response.headers.has("x-frame-options")) {
+    response.headers.set("x-frame-options", "SAMEORIGIN");
+  }
+  return response;
 };

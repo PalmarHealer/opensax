@@ -2,6 +2,8 @@
  * Convert plain text to HTML with linkified URLs and email addresses.
  * Escapes everything else to prevent injection.
  */
+import DOMPurify from "isomorphic-dompurify";
+
 const URL_RE = /\b((?:https?:\/\/|www\.)[^\s<>"')\]]+)/gi;
 const MAIL_RE = /\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
 
@@ -27,20 +29,33 @@ export function linkifyPlain(text: string): string {
 }
 
 /**
- * Sanitize an HTML string for safe rendering: drop scripts/iframes/event handlers,
- * force all links to open in a new tab.
+ * Sanitize an HTML string for safe rendering. Uses DOMPurify (jsdom on the
+ * server, native DOM in the browser) which strips scripts, event handlers,
+ * dangerous URLs, mathml/svg trickery, and HTML entity bypasses — none of
+ * which our previous regex sanitizer caught.
+ *
+ * We also force every <a> to `target=_blank rel=noopener noreferrer` via a
+ * one-shot afterSanitizeAttributes hook. Hooks are global on the singleton,
+ * so we register once at module load.
  */
+let hookRegistered = false;
+function ensureLinkHook(): void {
+  if (hookRegistered) return;
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if ((node as Element).tagName === "A") {
+      (node as Element).setAttribute("target", "_blank");
+      (node as Element).setAttribute("rel", "noopener noreferrer");
+    }
+  });
+  hookRegistered = true;
+}
+
 export function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<\s*script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, "")
-    .replace(/<\s*iframe\b[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, "")
-    .replace(/<\s*style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/gi, "")
-    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/javascript:/gi, "")
-    .replace(/<a\b([^>]*?)>/gi, (m, attrs) => {
-      // ensure target=_blank + rel
-      let cleaned: string = (attrs as string)
-        .replace(/\s(target|rel)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-      return `<a${cleaned} target="_blank" rel="noopener noreferrer">`;
-    });
+  ensureLinkHook();
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["style", "iframe", "form", "input", "button", "object", "embed", "base"],
+    FORBID_ATTR: ["style"],
+    ALLOW_DATA_ATTR: false,
+  });
 }

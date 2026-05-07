@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@lernsax/core": "workspace:*",
-    "@tabler/icons-svelte": "^3.36.0"
+    "@tabler/icons-svelte": "^3.36.0",
+    "isomorphic-dompurify": "^2.16.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.2.9",
