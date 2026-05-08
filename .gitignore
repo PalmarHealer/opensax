@@ -23,3 +23,6 @@ tasks.md
 
 # Lokale Portainer-Compose (enthält ggf. Host-spezifische Pfade/Ports).
 compose.portainer.yml
+
+# Tatsächliche Stack-Env mit Secrets — nur das *.example wird committet.
+.env.portainer
