@@ -79,13 +79,12 @@ jobs:
           cache-from: type=gha,scope=mcp
           cache-to: type=gha,scope=mcp,mode=max
 
-  deploy:
-    name: Deploy on server
+  build-on-server:
+    name: Build images on server
     runs-on: ubuntu-latest
     needs: docker
     # Only on direct pushes to main (not PRs from forks). Skip if any of the
-    # SSH-related secrets are missing — lets contributors fork without breaking
-    # the workflow.
+    # SSH secrets are missing — lets contributors fork without breaking CI.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
@@ -98,12 +97,12 @@ jobs:
         run: |
           if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ -z "$DEPLOY_KEY" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::DEPLOY_HOST/USER/SSH_KEY not set — skipping deploy"
+            echo "::notice::DEPLOY_HOST/USER/SSH_KEY not set — skipping server build"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Pull, rebuild & prune on server
+      - name: Build & prune on server
         if: steps.check.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1
         with:
@@ -111,28 +110,27 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key:      ${{ secrets.DEPLOY_SSH_KEY }}
           port:     ${{ secrets.DEPLOY_PORT || 22 }}
-          # `command_timeout` defaults to 10 min; --build can take longer on
-          # the first run because pnpm/Vite need to rebuild from scratch.
+          # First-time build can blow past the 10-min default while pnpm/Vite
+          # warm up.
           command_timeout: 30m
           script_stop: true
           script: |
             set -euo pipefail
             cd "${{ secrets.DEPLOY_PATH }}"
 
-            # Refresh source. Using `git fetch && git reset` instead of `pull`
-            # so a dirty working tree on the server doesn't break the deploy.
+            # Refresh source. `fetch && reset` instead of `pull` so a dirty
+            # working tree on the server doesn't block the build.
             git fetch --quiet origin main
             git reset --hard origin/main
 
-            # Build + recreate just the services that have local Dockerfiles.
-            # OnlyOffice is pulled from Docker Hub and doesn't need rebuild.
+            # Just build the services with local Dockerfiles. Don't touch
+            # running containers — Portainer (or whoever owns the stack)
+            # decides when to recreate.
             COMPOSE="${{ secrets.DEPLOY_COMPOSE_FILE || 'compose.portainer.yml' }}"
             docker compose -f "$COMPOSE" build --pull lernsax-web lernsax-mcp
-            docker compose -f "$COMPOSE" up -d lernsax-web lernsax-mcp onlyoffice
 
-            # Cleanup — drop dangling images from the previous build and the
-            # builder cache that the rebuild just superseded. Conservative:
-            # only `--filter dangling=true`, never `-a`, so still-tagged
-            # images of other stacks on the host stay put.
+            # Cleanup — drop dangling images from the previous build and trim
+            # the builder cache. Conservative: only `--filter dangling=true`,
+            # never `-a`, so still-tagged images of other stacks stay put.
             docker image prune -f --filter dangling=true
             docker builder prune -f --keep-storage 2GB || true
