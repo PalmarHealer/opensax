@@ -30,18 +30,34 @@ export const POST: RequestHandler = async ({ params, request, fetch }) => {
   if (status !== 2 && status !== 6) return json({ error: 0 });
   if (!body.url) return json({ error: 0 });
 
-  // The DocumentServer hands us back URLs that point to itself as it sees
-  // itself. Inside our docker network we need the service name. We accept
-  // *only* URLs whose host is OO's own hostname (or localhost, which we
-  // rewrite to it) — the URL is attacker-controllable from inside the OO
-  // container, so without this check it's an SSRF primitive.
+  // The DocumentServer hands us back URLs that point to itself. Inside our
+  // docker network we need the service name. The URL is attacker-controllable
+  // from inside the OO container, so we allowlist the host strictly:
+  // either the docker-internal hostname or whatever ONLYOFFICE_PUBLIC_URL
+  // resolves to (DocumentServer behind a reverse proxy issues URLs based on
+  // its public origin). Whichever it is, we rewrite to the internal name so
+  // the fetch stays inside the docker network.
   const ooHost = (process.env.OO_INTERNAL_HOST ?? "lernsax-onlyoffice").replace(/^https?:\/\//, "");
+  const ooHostBare = ooHost.split(":")[0]?.toLowerCase() ?? "";
+  let publicHost = "";
+  try {
+    const pub = process.env.ONLYOFFICE_PUBLIC_URL;
+    if (pub) publicHost = new URL(pub).hostname.toLowerCase();
+  } catch { /* malformed env — ignore */ }
   let parsed: URL;
   try { parsed = new URL(body.url); } catch { return json({ error: 1, message: "bad url" }, { status: 400 }); }
   const host = parsed.hostname.toLowerCase();
-  const allowed = host === ooHost.split(":")[0]?.toLowerCase() || host === "localhost" || host === "127.0.0.1";
+  const allowed =
+    host === ooHostBare ||
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    (publicHost && host === publicHost);
   if (!allowed) return json({ error: 1, message: "untrusted url host" }, { status: 400 });
-  const fetchUrl = body.url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, `http://${ooHost}`);
+  // Rewrite the host part to the docker-internal name regardless of which
+  // alias OO used. Keeps the download path/query intact.
+  parsed.protocol = "http:";
+  parsed.host = ooHost;
+  const fetchUrl = parsed.toString();
 
   try {
     const client = await getClientForSession(claims.sid);
