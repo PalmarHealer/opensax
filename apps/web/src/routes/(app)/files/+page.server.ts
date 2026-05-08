@@ -91,14 +91,19 @@ export const actions: Actions = {
   remove: async ({ locals, request }) => {
     const c = locals.client!;
     const data = await request.formData();
-    const id = data.get("id")?.toString();
+    const ids = data.getAll("id").map((v) => v.toString()).filter(Boolean);
     const type = data.get("type")?.toString();
-    if (!id) return fail(400, { error: "id required" });
+    if (ids.length === 0) return fail(400, { error: "id required" });
+    const group = groupFromForm(data);
     try {
       // Folders may have contents — `rmrf` walks the tree and deletes leaves
-      // first. For files this is a single delete_file call.
-      if (type === "folder") await c.files.rmrf(groupFromForm(data), id);
-      else await c.files.remove(groupFromForm(data), id);
+      // first. Files may have sibling versions (separate ids, same name) —
+      // delete each so "Löschen" wipes the whole history, not just the head.
+      if (type === "folder") {
+        for (const id of ids) await c.files.rmrf(group, id);
+      } else {
+        for (const id of ids) await c.files.remove(group, id);
+      }
     } catch (e) {
       return fail(403, { error: (e as Error).message });
     }

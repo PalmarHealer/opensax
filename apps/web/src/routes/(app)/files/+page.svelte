@@ -500,7 +500,13 @@
         use:enhance={() => async ({ update }) => { await update(); closeMenu(); }}
         class="block"
       >
-        <input type="hidden" name="id" value={e.id} />
+        {#if e.type === "file" && e.versions && e.versions.length > 1}
+          {#each e.versions as v}
+            <input type="hidden" name="id" value={v.id} />
+          {/each}
+        {:else}
+          <input type="hidden" name="id" value={e.id} />
+        {/if}
         <input type="hidden" name="type" value={e.type} />
         <input type="hidden" name="group" value={groupValue} />
         <button
