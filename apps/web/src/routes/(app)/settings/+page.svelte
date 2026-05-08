@@ -12,7 +12,22 @@
 
   interface StorageInfo {
     session: { present: boolean; ttl_days: number; cookie: { name: string; http_only: boolean; secure: boolean; same_site: string }; stored: string[] };
-    connections: { count: number; ttl_days: number | null; stored: string[]; records: Array<{ id: string; client_name: string; scopes: string[]; created_at: number; last_used_at: number }> };
+    account: {
+      user_id: string | null;
+      devices: {
+        count: number;
+        records: Array<{
+          device_id: string;
+          current: boolean;
+          createdAt: number;
+          lastSeen: number;
+          firstIp: string | null;
+          lastIp: string | null;
+          userAgent: string | null;
+        }>;
+      };
+    };
+    connections: { count: number; ttl_days: number | null; stored: string[]; scope?: string; records: Array<{ id: string; client_name: string; scopes: string[]; created_at: number; last_used_at: number }> };
     cache: Record<string, { ttl_seconds?: number; ttl_minutes?: string | number; scope: string; stored: string[] }>;
     not_stored: string[];
   }
@@ -40,6 +55,56 @@
   }
   function fmtTs(ms: number): string {
     return new Date(ms).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  }
+
+  // Tiny User-Agent parser. We only care about the rough categories the user
+  // would use to recognise the device — full UA parsing is overkill for this.
+  function parseUa(ua: string | null): { browser: string; os: string; device: string } {
+    if (!ua) return { browser: "Unbekannt", os: "Unbekannt", device: "Unbekannt" };
+    let browser = "Unbekannt";
+    if (/Edg\//.test(ua)) browser = "Edge";
+    else if (/OPR\/|Opera/.test(ua)) browser = "Opera";
+    else if (/Firefox\//.test(ua)) browser = "Firefox";
+    else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = "Chrome";
+    else if (/Safari\//.test(ua) && /Version\//.test(ua)) browser = "Safari";
+    else if (/curl|wget|HTTPie|node-fetch|axios/i.test(ua)) browser = ua.split("/")[0] ?? "CLI";
+
+    let os = "Unbekannt";
+    if (/Windows NT 10/.test(ua)) os = "Windows 10/11";
+    else if (/Windows NT/.test(ua)) os = "Windows";
+    else if (/Mac OS X|Macintosh/.test(ua)) os = "macOS";
+    else if (/Android/.test(ua)) os = "Android";
+    else if (/iPhone|iPad|iOS/.test(ua)) os = "iOS";
+    else if (/Linux/.test(ua)) os = "Linux";
+
+    let device = "Desktop";
+    if (/Mobi|iPhone|Android.*Mobile/.test(ua)) device = "Smartphone";
+    else if (/iPad|Tablet/.test(ua)) device = "Tablet";
+    return { browser, os, device };
+  }
+
+  let revokingDevice = $state<string | null>(null);
+  async function revokeDevice(device_id: string) {
+    if (revokingDevice) return;
+    revokingDevice = device_id;
+    try {
+      const r = await fetch(`/api/sessions/${encodeURIComponent(device_id)}`, { method: "DELETE" });
+      if (r.ok && storage) {
+        storage = {
+          ...storage,
+          account: {
+            ...storage.account,
+            devices: {
+              ...storage.account.devices,
+              count: storage.account.devices.count - 1,
+              records: storage.account.devices.records.filter((d) => d.device_id !== device_id),
+            },
+          },
+        };
+      }
+    } finally {
+      revokingDevice = null;
+    }
   }
 
   type Tab = "profile" | "mail" | "connections" | "navigation" | "account";
@@ -501,6 +566,52 @@
         </section>
 
         <section class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+          <h3 class="mb-1 text-sm font-semibold uppercase tracking-wide text-zinc-400">Andere Sitzungen</h3>
+          <p class="mb-4 text-sm text-zinc-400">
+            Alle Geräte, die aktuell mit deinem LernSax-Account angemeldet sind. Sitzungen sind 365 Tage gültig.
+          </p>
+          {#if !storage}
+            <p class="text-sm text-zinc-500">{storageLoading ? "Lade…" : ""}</p>
+          {:else if storage.account.devices.records.length === 0}
+            <p class="text-sm text-zinc-500">Keine aktiven Sitzungen gefunden.</p>
+          {:else}
+            <ul class="space-y-2">
+              {#each storage.account.devices.records as d}
+                {@const ua = parseUa(d.userAgent)}
+                <li class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+                  <div class="min-w-0 flex-1 space-y-1 text-sm">
+                    <p class="font-medium">
+                      {ua.device} · {ua.os} · {ua.browser}
+                      {#if d.current}
+                        <span class="ml-2 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">dieses Gerät</span>
+                      {/if}
+                    </p>
+                    <dl class="grid grid-cols-[110px_1fr] gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+                      <dt>IP (Anmeldung)</dt><dd class="font-mono text-zinc-400">{d.firstIp ?? "—"}</dd>
+                      {#if d.lastIp && d.lastIp !== d.firstIp}
+                        <dt>IP (zuletzt)</dt><dd class="font-mono text-zinc-400">{d.lastIp}</dd>
+                      {/if}
+                      <dt>Erste Anmeldung</dt><dd class="text-zinc-400">{fmtTs(d.createdAt)}</dd>
+                      <dt>Zuletzt aktiv</dt><dd class="text-zinc-400">{fmtTs(d.lastSeen)}</dd>
+                      {#if d.userAgent}
+                        <dt>User-Agent</dt><dd class="break-all text-[10px] text-zinc-500">{d.userAgent}</dd>
+                      {/if}
+                    </dl>
+                  </div>
+                  {#if !d.current}
+                    <button
+                      onclick={() => revokeDevice(d.device_id)}
+                      disabled={revokingDevice === d.device_id}
+                      class="shrink-0 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                    >{revokingDevice === d.device_id ? "Melde ab…" : "Abmelden"}</button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
+
+        <section class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">Daten</h3>
 
           {#if !storage}
@@ -508,18 +619,22 @@
           {:else}
             <div class="space-y-4 text-sm">
               <div>
-                <p class="font-medium">Sitzung ({storage.session.ttl_days} Tage gültig)</p>
+                <p class="font-medium">Sitzungen — {storage.account.devices.count} aktive{storage.account.devices.count === 1 ? 's Gerät' : ' Geräte'} ({storage.session.ttl_days} Tage gültig)</p>
                 <p class="text-xs text-zinc-500">
                   Anmelde-Cookie <code>{storage.session.cookie.name}</code> · HttpOnly · Secure · SameSite={storage.session.cookie.same_site}.
-                  Gespeichert: {storage.session.stored.join(", ")}.
+                  Details und Abmelden im Bereich „Andere Sitzungen" oben.
                 </p>
+                <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
+                  {#each storage.session.stored as line}<li>· {line}</li>{/each}
+                </ul>
               </div>
 
               <div>
-                <p class="font-medium">OAuth-Verbindungen ({storage.connections.count})</p>
-                <p class="text-xs text-zinc-500">
-                  Gespeichert: {storage.connections.stored.join(", ")}.
-                </p>
+                <p class="font-medium">MCP-Verbindungen ({storage.connections.count})</p>
+                <p class="text-xs text-zinc-500">{storage.connections.scope ?? "pro LernSax-Account"}.</p>
+                <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
+                  {#each storage.connections.stored as line}<li>· {line}</li>{/each}
+                </ul>
                 {#if storage.connections.records.length}
                   <ul class="mt-2 space-y-1 text-xs text-zinc-400">
                     {#each storage.connections.records as c}
@@ -562,7 +677,7 @@
                 class="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-1.5 text-sm font-medium text-red-300 hover:bg-red-500/20"
               >Alle Daten löschen</button>
             {:else}
-              <span class="text-sm text-zinc-400">Sicher? Das löscht Sitzung &amp; Verbindungen.</span>
+              <span class="text-sm text-zinc-400">Sicher? Das meldet alle Geräte ab und löscht alle Verbindungen.</span>
               <button
                 onclick={destroyAccount}
                 class="rounded-md border border-red-500 bg-red-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-400"

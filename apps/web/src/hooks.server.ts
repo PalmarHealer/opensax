@@ -1,5 +1,5 @@
 import type { Handle } from "@sveltejs/kit";
-import { getClientForSession, destroySession } from "$lib/server/sessionStore";
+import { getClientForSession, destroySession, touchSession } from "$lib/server/sessionStore";
 import { clientIp, rateLimit } from "$lib/server/rateLimit";
 
 const COOKIE = "lernsax_sid";
@@ -66,6 +66,12 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (sid) {
     try {
       event.locals.client = await getClientForSession(sid);
+      // Refresh last-seen IP so Settings can show "where was this device last
+      // active". GET-only avoids hammering disk on every form post.
+      if (event.locals.client && event.request.method === "GET") {
+        const ip = clientIp(event.request.headers, event.getClientAddress?.() ?? null);
+        touchSession(sid, ip);
+      }
     } catch (err) {
       console.warn("[hooks] failed to revive session, clearing cookie", err);
       destroySession(sid);

@@ -104,7 +104,7 @@
       OpenSax verwendet Cookies ausschließlich funktional — kein Tracking, keine Analytics, keine Drittanbieter.
     </p>
     <ul class="mt-3 space-y-2 text-sm text-zinc-300">
-      <li><span class="font-medium">lernsax_sid</span> <span class="text-xs text-zinc-500">(HttpOnly · Secure · SameSite=Lax)</span><br /><span class="text-xs text-zinc-400">Session-Cookie. Verknüpft den Browser mit der serverseitig verschlüsselten Anmeldung. Ohne diesen Cookie ist kein Login möglich. Lebensdauer: 30 Tage oder bis zum Abmelden.</span></li>
+      <li><span class="font-medium">lernsax_sid</span> <span class="text-xs text-zinc-500">(HttpOnly · Secure · SameSite=Lax)</span><br /><span class="text-xs text-zinc-400">Session-Cookie. Verknüpft den Browser mit der serverseitig verschlüsselten Anmeldung. Ohne diesen Cookie ist kein Login möglich. Lebensdauer: 365 Tage oder bis zum Abmelden. Dabei werden zur Erkennung deiner Geräte IP und User-Agent zur Sitzung gespeichert (sichtbar unter Einstellungen → Account → Andere Sitzungen).</span></li>
       <li><span class="font-medium">localStorage</span> <span class="text-xs text-zinc-500">(im Browser, kein Server)</span><br /><span class="text-xs text-zinc-400">Speichert nur deine Theme- und Navigations-Einstellungen. Wird nie an den Server geschickt.</span></li>
     </ul>
     <p class="mt-3 text-xs text-zinc-500">

@@ -1,6 +1,7 @@
 import { error, fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { findClient, issueAuthCode } from "$lib/server/connectionStore";
+import { getUserIdForSession } from "$lib/server/sessionStore";
 
 interface AuthRequest {
   client_id: string;
@@ -65,7 +66,8 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 export const actions: Actions = {
   approve: async ({ request, cookies }) => {
     const sid = cookies.get("lernsax_sid");
-    if (!sid) return fail(401, { error: "not authenticated" });
+    const user_id = getUserIdForSession(sid ?? null);
+    if (!user_id) return fail(401, { error: "not authenticated" });
 
     // The action URL drops the original query string (it becomes `?/approve`),
     // so the OAuth params travel via hidden form inputs instead.
@@ -78,7 +80,7 @@ export const actions: Actions = {
 
     const code = issueAuthCode({
       client_id: req.client_id,
-      user_sid: sid,
+      user_id,
       redirect_uri: req.redirect_uri,
       scopes: (req.scope ?? "lernsax").split(/\s+/),
       code_challenge: req.code_challenge,

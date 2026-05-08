@@ -1,6 +1,6 @@
 import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { getCredentialsForSession } from "$lib/server/sessionStore";
+import { getCredentialsForSession, getUserIdForSession, listSessionsForUser } from "$lib/server/sessionStore";
 import { listForUser } from "$lib/server/connectionStore";
 
 const COOKIE = "lernsax_sid";
@@ -15,12 +15,24 @@ export const GET: RequestHandler = async ({ cookies }) => {
   if (!sid) throw error(401, "no session");
   const creds = getCredentialsForSession(sid);
   if (!creds) throw error(404, "session not found");
+  const user_id = getUserIdForSession(sid);
 
-  const connections = listForUser(sid);
+  const connections = user_id ? listForUser(user_id) : [];
+  const sessionsList = user_id ? listSessionsForUser(user_id, sid) : [];
   const dump = {
     exported_at: new Date().toISOString(),
     note: "Vollständiger Export aller Daten, die OpenSax zu deinem Account speichert. Die Anmeldedaten unten lagen verschlüsselt (AES-256-GCM) auf dem Server und wurden nur für diesen Export entschlüsselt.",
+    user_id: user_id ?? null,
     credentials: { email: creds.email, password: creds.password },
+    sessions: sessionsList.map((s) => ({
+      device_id: s.device_id,
+      current: s.isCurrent,
+      created_at: s.createdAt,
+      last_seen: s.lastSeen,
+      first_ip: s.firstIp ?? null,
+      last_ip: s.lastIp ?? null,
+      user_agent: s.userAgent ?? null,
+    })),
     connections: connections.map((c) => ({
       id: c.id,
       client_name: c.client_name,

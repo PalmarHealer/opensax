@@ -16,8 +16,13 @@ export interface ConnectionRecord {
   token_hash: string;
   /** Refresh token hash (optional). */
   refresh_hash?: string;
-  /** Links to a user session in `sessionStore` (the `lernsax_sid` cookie). */
-  user_sid: string;
+  /**
+   * Stable identifier for the LernSax account that approved this connection.
+   * Derived from the email — same across devices, so a token issued from a
+   * laptop session stays valid (and visible in Settings) when the same user
+   * logs in on a phone.
+   */
+  user_id: string;
   client_id: string;
   client_name: string;
   redirect_uris: string[];
@@ -44,7 +49,7 @@ export function mintToken(): string {
 }
 
 export function createConnection(args: {
-  user_sid: string;
+  user_id: string;
   client_id: string;
   client_name: string;
   redirect_uris: string[];
@@ -60,7 +65,7 @@ export function createConnection(args: {
     id,
     token_hash: hashToken(args.access_token),
     refresh_hash: args.refresh_token ? hashToken(args.refresh_token) : undefined,
-    user_sid: args.user_sid,
+    user_id: args.user_id,
     client_id: args.client_id,
     client_name: args.client_name,
     redirect_uris: args.redirect_uris,
@@ -77,7 +82,7 @@ export function listAll(): ConnectionRecord[] {
   ensureDir();
   const out: ConnectionRecord[] = [];
   for (const f of readdirSync(STORE_DIR)) {
-    if (!f.endsWith(".json")) continue;
+    if (!f.endsWith(".json") || f.startsWith("_")) continue;
     try {
       out.push(JSON.parse(readFileSync(join(STORE_DIR, f), "utf8")) as ConnectionRecord);
     } catch { /* skip */ }
@@ -85,8 +90,8 @@ export function listAll(): ConnectionRecord[] {
   return out;
 }
 
-export function listForUser(user_sid: string): ConnectionRecord[] {
-  return listAll().filter((c) => c.user_sid === user_sid);
+export function listForUser(user_id: string): ConnectionRecord[] {
+  return listAll().filter((c) => c.user_id === user_id);
 }
 
 /** Resolve a presented Bearer token to its connection. Updates `last_used_at`. */
@@ -171,7 +176,7 @@ export function findClient(client_id: string): OauthClient | null {
 interface AuthCode {
   code: string;
   client_id: string;
-  user_sid: string;
+  user_id: string;
   redirect_uri: string;
   scopes: string[];
   code_challenge?: string;

@@ -50,7 +50,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const access_token = mintToken();
     const refresh_token = mintToken();
     createConnection({
-      user_sid: auth.user_sid,
+      user_id: auth.user_id,
       client_id: auth.client_id,
       client_name: client.client_name,
       redirect_uris: client.redirect_uris,

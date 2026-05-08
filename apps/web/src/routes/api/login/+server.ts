@@ -2,10 +2,11 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { LernSaxClient } from "@lernsax/core";
 import { createSession, getClientForSession } from "$lib/server/sessionStore";
+import { clientIp } from "$lib/server/rateLimit";
 
 const COOKIE = "lernsax_sid";
 
-export const POST: RequestHandler = async ({ request, cookies, url }) => {
+export const POST: RequestHandler = async ({ request, cookies, url, getClientAddress }) => {
   let body: { email?: string; password?: string };
   try {
     body = await request.json();
@@ -27,7 +28,9 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
     probe.logout().catch(() => {});
   }
 
-  const sid = createSession({ email, password });
+  const ip = clientIp(request.headers, getClientAddress?.() ?? null);
+  const userAgent = request.headers.get("user-agent") ?? undefined;
+  const sid = createSession({ email, password }, { firstIp: ip, userAgent });
   // Detect HTTPS via either the request URL or the proxy's X-Forwarded-Proto
   // — NODE_ENV alone gives wrong answers behind TLS-terminating proxies.
   const isSecure =
@@ -39,7 +42,7 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
     httpOnly: true,
     sameSite: "lax",
     secure: isSecure,
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: 60 * 60 * 24 * 365, // 1 year
   });
 
   // Eagerly warm a long-lived client for this session
