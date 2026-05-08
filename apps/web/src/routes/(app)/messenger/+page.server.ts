@@ -57,7 +57,11 @@ export const actions: Actions = {
     try {
       await c.messenger.send(to_login, text);
     } catch (e) {
-      return fail(502, { error: (e as Error).message || "send failed", to_login, text });
+      const raw = (e as Error).message || "";
+      const error = !raw || raw === "ERROR"
+        ? `Nachricht an ${to_login} konnte nicht gesendet werden. Empfänger:in unbekannt, Messenger gesperrt oder du wurdest blockiert.`
+        : raw;
+      return fail(502, { error, to_login, text });
     }
     return { ok: true };
   },
