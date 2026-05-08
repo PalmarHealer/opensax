@@ -1,6 +1,7 @@
 import type { LayoutServerLoad } from "./$types";
 
-export const load: LayoutServerLoad = async ({ locals, url, route, params }) => {
+export const load: LayoutServerLoad = async ({ locals, url, route, params, depends }) => {
+  depends("mail:list");
   const c = locals.client!;
   const folders = await c.mail.getFolders();
   const inbox = folders.find((f) => f.is_inbox) ?? folders[0];

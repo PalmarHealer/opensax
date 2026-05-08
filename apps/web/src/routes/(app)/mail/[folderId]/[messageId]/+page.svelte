@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { invalidate } from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
   import { linkifyPlain, sanitizeHtml } from "$lib/linkify";
   import { composeStore } from "$lib/composeStore.svelte";
@@ -10,6 +11,10 @@
   const flagged = $derived(Boolean(m.is_flagged));
   const folders = $derived((data as unknown as { folders?: Array<{ id: string; name: string }> }).folders ?? []);
   const moveTargets = $derived(folders.filter((f) => f.id !== data.folderId));
+
+  // Reading a message flips its unread state on the server — re-fetch the list
+  // so the sidebar reflects it. Keyed on id so it fires once per message.
+  $effect(() => { void m.id; invalidate("mail:list"); });
 
   async function openCompose(mode: "reply" | "reply-all" | "forward") {
     const u = new URL("/api/mail/compose-prefill", window.location.origin);
