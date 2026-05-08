@@ -1,13 +1,16 @@
 import type { FocusSpec, LernSaxSession } from "../session.js";
 
+/** Author/timestamp metadata as LernSax returns it on `get_entries`/`get_entry`. */
+export type ForumStamp = number | { date?: number; user?: { login?: string; name_hr?: string } };
+
 export interface ForumEntry {
   id: string;
   title: string;
   text?: string;
   author?: { login: string; name_hr?: string };
   parent_id?: string;
-  created?: number;
-  modified?: number;
+  created?: ForumStamp;
+  modified?: ForumStamp;
   reply_count?: number;
   [k: string]: unknown;
 }

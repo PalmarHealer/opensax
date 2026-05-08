@@ -6,18 +6,29 @@
   import Modal from "$lib/Modal.svelte";
   import PersonChip from "$lib/PersonChip.svelte";
   import { sanitizeHtml, linkifyPlain } from "$lib/linkify";
+  import type { ForumEntry, ForumStamp } from "@lernsax/core";
 
   let { data } = $props();
   const groupValue = $derived(data.group ?? "");
 
-  function fmt(ts: number | { date?: number } | undefined): string {
-    if (!ts) return "";
-    const n = typeof ts === "object" ? Number(ts.date) : Number(ts);
+  function stampDate(ts: ForumStamp | undefined): number | undefined {
+    if (ts === undefined) return undefined;
+    return typeof ts === "object" ? ts.date : ts;
+  }
+  function stampUser(ts: ForumStamp | undefined): { login?: string; name_hr?: string } | undefined {
+    return typeof ts === "object" ? ts?.user : undefined;
+  }
+  function fmt(ts: ForumStamp | undefined): string {
+    const n = Number(stampDate(ts));
     if (!Number.isFinite(n) || n <= 0) return "";
     return new Date(n * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
   }
-  function authorName(e: any): string {
-    return e?.created?.user?.name_hr ?? e?.created?.user?.login ?? e?.author?.name_hr ?? e?.author?.login ?? "—";
+  function authorOf(e: ForumEntry): { name?: string; login?: string } {
+    const u = stampUser(e.created);
+    return {
+      name: u?.name_hr ?? e.author?.name_hr,
+      login: u?.login ?? e.author?.login,
+    };
   }
   function looksHtml(s: string): boolean { return /<[a-z][\s\S]*>/i.test(s); }
   function openThread(id: string | null) {
@@ -57,10 +68,11 @@
     {:else if data.thread}
       <div class="mx-auto max-w-3xl space-y-3">
         {#if data.root}
+          {@const rootAuthor = authorOf(data.root)}
           <article class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5">
             <h2 class="text-lg font-semibold">{data.root.title}</h2>
             <p class="mt-1 text-xs text-zinc-500">
-              <span class="font-medium text-zinc-400"><PersonChip name={(data.root as any)?.created?.user?.name_hr ?? (data.root as any)?.author?.name_hr} login={(data.root as any)?.created?.user?.login ?? (data.root as any)?.author?.login} /></span>
+              <span class="font-medium text-zinc-400"><PersonChip name={rootAuthor.name} login={rootAuthor.login} /></span>
               <span> · {fmt(data.root.created)}</span>
             </p>
             {#if looksHtml(data.root.text ?? "")}
@@ -74,9 +86,10 @@
         {/if}
         {#each data.replies as r}
           {#if r.id !== data.thread}
+            {@const replyAuthor = authorOf(r)}
             <article class="ml-6 rounded-xl border border-zinc-800 bg-zinc-900/20 p-4">
               <p class="text-xs text-zinc-500">
-                <span class="font-medium text-zinc-400"><PersonChip name={(r as any)?.created?.user?.name_hr ?? (r as any)?.author?.name_hr} login={(r as any)?.created?.user?.login ?? (r as any)?.author?.login} /></span>
+                <span class="font-medium text-zinc-400"><PersonChip name={replyAuthor.name} login={replyAuthor.login} /></span>
                 <span> · {fmt(r.created)}</span>
               </p>
               {#if looksHtml(r.text ?? "")}
@@ -93,6 +106,7 @@
     {:else}
       <div class="mx-auto max-w-3xl space-y-2">
         {#each data.threads as t}
+          {@const threadAuthor = authorOf(t)}
           <div class="group flex items-start justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 transition hover:bg-zinc-900/60">
             <div class="min-w-0 flex-1">
               <button
@@ -101,7 +115,7 @@
                 onclick={() => openThread(t.id)}
               >{t.title}</button>
               <p class="mt-1 truncate text-xs text-zinc-500">
-                <span class="text-zinc-400"><PersonChip name={(t as any)?.created?.user?.name_hr ?? (t as any)?.author?.name_hr} login={(t as any)?.created?.user?.login ?? (t as any)?.author?.login} /></span>
+                <span class="text-zinc-400"><PersonChip name={threadAuthor.name} login={threadAuthor.login} /></span>
                 <span> · {fmt(t.created)}</span>
                 {#if t.reply_count}<span> · {t.reply_count} Antworten</span>{/if}
               </p>

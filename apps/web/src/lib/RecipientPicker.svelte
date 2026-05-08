@@ -42,8 +42,14 @@
       )
       .slice(0, 8);
   });
+  // Clamp the keyboard cursor whenever the suggestion list shrinks so Enter
+  // can't dereference an out-of-range index.
+  $effect(() => {
+    if (highlight >= suggestions.length) highlight = 0;
+  });
 
-  function pick(c: Contact) {
+  function pick(c: Contact | undefined) {
+    if (!c) return;
     const join = parts.prefix && !parts.prefix.endsWith(" ") ? " " : "";
     value = `${parts.prefix}${join}${c.login}, `;
     highlight = 0;

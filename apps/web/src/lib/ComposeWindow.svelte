@@ -8,6 +8,10 @@
 
   async function send(e: SubmitEvent) {
     e.preventDefault();
+    if (!composeStore.draft.to.trim()) {
+      error = "Empfänger fehlt.";
+      return;
+    }
     busy = true;
     error = null;
     try {
