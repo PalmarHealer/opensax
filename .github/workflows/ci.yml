@@ -123,11 +123,13 @@ jobs:
             git fetch --quiet origin main
             git reset --hard origin/main
 
-            # Just build the services with local Dockerfiles. Don't touch
-            # running containers — Portainer (or whoever owns the stack)
-            # decides when to recreate.
-            COMPOSE="${{ secrets.DEPLOY_COMPOSE_FILE || 'compose.portainer.yml' }}"
-            docker compose -f "$COMPOSE" build --pull lernsax-web lernsax-mcp
+            # Build the two services as standalone tagged images. Portainer's
+            # compose references them by `image: opensax-web|mcp:latest`, so
+            # we don't go through `docker compose build` here — that would
+            # need the full env-var set the running stack uses, even just to
+            # build.
+            docker build --pull -f apps/web/Dockerfile        -t opensax-web:latest .
+            docker build --pull -f packages/mcp/Dockerfile    -t opensax-mcp:latest .
 
             # Cleanup — drop dangling images from the previous build and trim
             # the builder cache. Conservative: only `--filter dangling=true`,
