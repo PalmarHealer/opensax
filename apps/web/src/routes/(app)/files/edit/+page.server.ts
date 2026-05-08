@@ -9,6 +9,7 @@ import {
   ooSecret,
 } from "$lib/server/oo";
 import { signJwt } from "$lib/server/jwt";
+import { buildFileBreadcrumb } from "@lernsax/core";
 
 export const load: PageServerLoad = async ({ locals, url, cookies }) => {
   const c = locals.client!;
@@ -77,8 +78,11 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
   // OnlyOffice expects a JWT with the entire config payload (when JWT_ENABLED).
   const ooConfigToken = signJwt(editorConfig as unknown as Record<string, unknown>, ooSecret(), 6 * 3600);
 
+  const breadcrumb = buildFileBreadcrumb(entries, file.parent_id ?? "/");
+
   return {
     file: { id: file.id, name: file.name, parent_id: file.parent_id },
+    breadcrumb,
     group: group ?? null,
     apiJsUrl: ooApiJsUrl(),
     editorConfig: { ...editorConfig, token: ooConfigToken },

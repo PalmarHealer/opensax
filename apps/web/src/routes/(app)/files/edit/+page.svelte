@@ -77,29 +77,44 @@
     }
   });
 
-  function back() {
+  function navTo(folderId: string) {
     const u = new URL("/files", window.location.origin);
     if (data.group) u.searchParams.set("group", data.group);
-    if (data.file.parent_id) u.searchParams.set("folder", data.file.parent_id);
+    if (folderId && folderId !== "/") u.searchParams.set("folder", folderId);
     goto(u.pathname + u.search);
   }
 </script>
 
 <div class="grid h-full" style="grid-template-rows: auto 1fr">
-  <header class="flex items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/80 px-6 py-2.5">
-    <div class="flex items-center gap-2 min-w-0">
+  <header class="flex items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
+    <div class="flex min-w-0 items-center gap-1 overflow-x-auto">
       <button
-        onclick={back}
         class="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+        onclick={() => navTo("/")}
       >
-        <Icon name="chevron-left" size={16} /> Dateien
+        <Icon name="folder" size={14} />
+        <span>Root</span>
       </button>
-      <span class="truncate text-sm font-medium">{data.file.name}</span>
+      {#each data.breadcrumb as b, i}
+        {#if b.id !== "/"}
+          <Icon name="chevron-right" size={14} class="text-zinc-600" />
+          <button
+            class="truncate rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+            onclick={() => navTo(b.id)}
+            title={b.name}
+          >{b.name}</button>
+        {/if}
+      {/each}
+      <Icon name="chevron-right" size={14} class="text-zinc-600" />
+      <span class="flex items-center gap-1 truncate rounded-md px-2 py-1 text-sm font-medium text-zinc-100" title={data.file.name}>
+        <Icon name="file" size={14} />
+        {data.file.name}
+      </span>
       {#if data.mode === "view"}
-        <span class="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] uppercase tracking-wide text-zinc-400">nur lesen</span>
+        <span class="ml-1 rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] uppercase tracking-wide text-zinc-400">nur lesen</span>
       {/if}
     </div>
-    <div class="flex items-center gap-2 text-xs text-zinc-500">
+    <div class="flex shrink-0 items-center gap-2 text-xs text-zinc-500">
       {#if status === "loading"}
         <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-600 border-t-indigo-400"></span>
         OnlyOffice startet…
