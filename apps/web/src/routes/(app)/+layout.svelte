@@ -57,9 +57,18 @@
     const u = new URL(page.url);
     if (login) u.searchParams.set("group", login);
     else u.searchParams.delete("group");
-    u.searchParams.delete("folder");
-    u.searchParams.delete("ym");
-    goto(u.pathname + u.search, { invalidateAll: true });
+    // Drop identifiers that only make sense inside the previous group —
+    // mail folder, calendar month, file id, file edit mode, forum thread,
+    // wiki page, messenger peer.
+    for (const k of ["folder", "ym", "id", "mode", "thread", "page", "with"]) {
+      u.searchParams.delete(k);
+    }
+    // /files/edit, /mail/[folder]/[message] etc. all point at a specific
+    // record from the old group — bounce up to the section root.
+    let path = u.pathname;
+    if (path.startsWith("/files/")) path = "/files";
+    else if (path.startsWith("/mail/")) path = "/mail";
+    goto(path + u.search, { invalidateAll: true });
   }
 </script>
 
