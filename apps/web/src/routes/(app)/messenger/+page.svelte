@@ -7,6 +7,7 @@
   import PersonChip from "$lib/PersonChip.svelte";
 
   let { data } = $props();
+  let sendError = $state<string | null>(null);
 
   type Msg = { id: number; from_login: string; to_login: string; text: string; date: number; is_unread?: boolean };
   function bucket(history: Msg[], myLogin: string | undefined): Map<string, Msg[]> {
@@ -140,10 +141,19 @@
         {/each}
       </ol>
 
+      {#if sendError}
+        <div class="border-t border-red-900/40 bg-red-950/40 px-4 py-2 text-xs text-red-300" role="alert">
+          {sendError}
+        </div>
+      {/if}
       <form
         method="POST"
         action="?/send"
-        use:enhance={() => async ({ update }) => { await update({ reset: false }); draft = ""; }}
+        use:enhance={() => async ({ result, update }) => {
+          await update({ reset: false });
+          if (result.type === "success") { sendError = null; draft = ""; }
+          else if (result.type === "failure") sendError = (result.data as { error?: string } | undefined)?.error ?? "Senden fehlgeschlagen";
+        }}
         class="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-4 py-3"
       >
         <input type="hidden" name="to_login" value={active} />

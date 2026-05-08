@@ -54,7 +54,11 @@ export const actions: Actions = {
     const to_login = data.get("to_login")?.toString();
     const text = data.get("text")?.toString().trim();
     if (!to_login || !text) return fail(400, { error: "to_login+text required" });
-    await c.messenger.send(to_login, text);
+    try {
+      await c.messenger.send(to_login, text);
+    } catch (e) {
+      return fail(502, { error: (e as Error).message || "send failed", to_login, text });
+    }
     return { ok: true };
   },
 };
