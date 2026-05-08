@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { invalidate } from "$app/navigation";
+  import Dropdown from "$lib/Dropdown.svelte";
   import Icon from "$lib/Icon.svelte";
   import { linkifyPlain, sanitizeHtml } from "$lib/linkify";
   import { composeStore } from "$lib/composeStore.svelte";
@@ -11,6 +12,8 @@
   const flagged = $derived(Boolean(m.is_flagged));
   const folders = $derived((data as unknown as { folders?: Array<{ id: string; name: string }> }).folders ?? []);
   const moveTargets = $derived(folders.filter((f) => f.id !== data.folderId));
+  let moveFormEl = $state<HTMLFormElement | undefined>();
+  let moveTarget = $state("");
 
   // Reading a message flips its unread state on the server — re-fetch the list
   // so the sidebar reflects it. Keyed on id so it fires once per message.
@@ -84,19 +87,31 @@
         </button>
       </form>
       {#if moveTargets.length}
-        <form method="POST" action="?/move" use:enhance class="flex items-center">
-          <select
-            name="target_folder_id"
-            onchange={(e) => (e.currentTarget.form as HTMLFormElement).requestSubmit()}
-            class="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-sm hover:bg-zinc-800"
-            title="In Ordner verschieben"
-          >
-            <option value="">Verschieben…</option>
-            {#each moveTargets as f}
-              <option value={f.id}>{f.name}</option>
-            {/each}
-          </select>
+        <form method="POST" action="?/move" use:enhance bind:this={moveFormEl}>
+          <input type="hidden" name="target_folder_id" bind:value={moveTarget} />
         </form>
+        <Dropdown align="right" buttonClass="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800">
+          {#snippet label()}
+            <Icon name="folder" size={14} /> Verschieben <Icon name="chevron-down" size={12} />
+          {/snippet}
+          {#snippet children(close)}
+            <ul class="max-h-72 overflow-y-auto">
+              {#each moveTargets as f}
+                <li>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-zinc-800"
+                    onclick={() => { moveTarget = f.id; close(); moveFormEl?.requestSubmit(); }}
+                  >
+                    <Icon name="folder" size={14} />
+                    <span class="truncate">{f.name}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/snippet}
+        </Dropdown>
       {/if}
       <form method="POST" action="?/delete" use:enhance>
         <button class="flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/20" title="Löschen">
