@@ -9,7 +9,7 @@ import type { RequestHandler } from "./$types";
  *
  * Use `?download=1` to force a "save-as" download (Content-Disposition: attachment).
  */
-export const GET: RequestHandler = async ({ locals, url, fetch, request }) => {
+export const GET: RequestHandler = async ({ locals, url, request }) => {
   const c = locals.client!;
   const id = url.searchParams.get("id");
   const group = url.searchParams.get("group") || undefined;
@@ -19,12 +19,18 @@ export const GET: RequestHandler = async ({ locals, url, fetch, request }) => {
   const downloadUrl = await c.files.downloadUrl(group, id).catch(() => null);
   if (!downloadUrl) throw error(404, "no download URL");
 
+  // LernSax sometimes returns URLs with unencoded `%` in filenames, which
+  // breaks SvelteKit's fetch wrapper (decodeURIComponent throws). Re-normalize
+  // the path through encodeURI and bypass the wrapper by using global fetch —
+  // this is an external request, the wrapper offers no benefit here.
+  const safeUrl = normalizeUrl(downloadUrl);
+
   // Forward Range requests (so PDF.js can stream).
   const headers: Record<string, string> = {};
   const range = request.headers.get("range");
   if (range) headers.range = range;
 
-  const upstream = await fetch(downloadUrl, { headers });
+  const upstream = await globalThis.fetch(safeUrl, { headers });
 
   if (!upstream.ok && upstream.status !== 206) {
     throw error(upstream.status, `upstream ${upstream.status}`);
@@ -68,3 +74,11 @@ export const GET: RequestHandler = async ({ locals, url, fetch, request }) => {
     headers: out,
   });
 };
+
+function normalizeUrl(raw: string): string {
+  // Escape any `%` that isn't followed by two hex digits — LernSax occasionally
+  // returns filenames with literal `%` inside the URL path, which is a syntactic
+  // percent-encoding error and trips downstream decoders.
+  const fixed = raw.replace(/%(?![0-9A-Fa-f]{2})/g, "%25");
+  return new URL(fixed).toString();
+}
