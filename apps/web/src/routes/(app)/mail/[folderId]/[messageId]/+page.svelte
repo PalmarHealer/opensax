@@ -7,6 +7,9 @@
 
   let { data } = $props();
   const m = $derived(data.message);
+  const flagged = $derived(Boolean(m.is_flagged));
+  const folders = $derived((data as unknown as { folders?: Array<{ id: string; name: string }> }).folders ?? []);
+  const moveTargets = $derived(folders.filter((f) => f.id !== data.folderId));
 
   async function openCompose(mode: "reply" | "reply-all" | "forward") {
     const u = new URL("/api/mail/compose-prefill", window.location.origin);
@@ -59,6 +62,37 @@
       <button onclick={() => openCompose("forward")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Weiterleiten">
         <Icon name="chevron-right" size={14} /> Weiterleiten
       </button>
+      <form method="POST" action="?/flag" use:enhance>
+        <input type="hidden" name="is_flagged" value={(!flagged).toString()} />
+        <button
+          class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
+          class:text-amber-300={flagged}
+          title={flagged ? "Markierung entfernen" : "Als wichtig markieren"}
+        >
+          <Icon name="star" size={14} /> {flagged ? "Markiert" : "Wichtig"}
+        </button>
+      </form>
+      <form method="POST" action="?/flag" use:enhance>
+        <input type="hidden" name="is_unread" value="true" />
+        <button class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Als ungelesen markieren">
+          <Icon name="mail-opened" size={14} /> Ungelesen
+        </button>
+      </form>
+      {#if moveTargets.length}
+        <form method="POST" action="?/move" use:enhance class="flex items-center">
+          <select
+            name="target_folder_id"
+            onchange={(e) => (e.currentTarget.form as HTMLFormElement).requestSubmit()}
+            class="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-sm hover:bg-zinc-800"
+            title="In Ordner verschieben"
+          >
+            <option value="">Verschieben…</option>
+            {#each moveTargets as f}
+              <option value={f.id}>{f.name}</option>
+            {/each}
+          </select>
+        </form>
+      {/if}
       <form method="POST" action="?/delete" use:enhance>
         <button class="flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/20" title="Löschen">
           <Icon name="trash" size={14} /> Löschen
