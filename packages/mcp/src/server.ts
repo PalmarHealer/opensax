@@ -36,6 +36,36 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
     content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
   });
 
+  // Inline base64 file content as an embedded resource block (plus a text
+  // summary so the model has the name/size context).
+  const MIME_BY_EXT: Record<string, string> = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    txt: "text/plain",
+    csv: "text/csv",
+    json: "application/json",
+    zip: "application/zip",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  };
+  const mimeForName = (name: string): string => {
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    return MIME_BY_EXT[ext] ?? "application/octet-stream";
+  };
+  const fileResult = (id: string, name: string, size: number, base64: string) => ({
+    content: [
+      { type: "text" as const, text: JSON.stringify({ name, size }, null, 2) },
+      {
+        type: "resource" as const,
+        resource: { uri: `lernsax://file/${id}`, mimeType: mimeForName(name), blob: base64 },
+      },
+    ],
+  });
+
   // ─── Meta ────────────────────────────────────────────────────────────────
   server.tool(
     "whoami",
@@ -84,7 +114,7 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
 
   server.tool(
     "mail_send",
-    "Send a mail. `to` is a comma-separated list.",
+    "Send a mail. `to` is a comma-separated list. Pass `reply_id`/`forward_id` to reply to or forward an existing message, and `attachments` (base64) to attach files.",
     {
       ...CredsShape,
       to: z.string(),
@@ -94,9 +124,40 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
       cc: z.string().optional(),
       bcc: z.string().optional(),
       reply_id: z.string().optional(),
+      forward_id: z.string().optional(),
+      attachments: z
+        .array(z.object({ name: z.string(), data_base64: z.string() }))
+        .optional()
+        .describe("Files to attach, base64-encoded."),
+    },
+    async ({ email, password, attachments, ...rest }) =>
+      withClient({ email, password }, async (c) => {
+        const import_session_files: string[] = [];
+        for (const att of attachments ?? []) {
+          import_session_files.push(await c.mail.addSessionFile(att.name, att.data_base64));
+        }
+        return ok(
+          await c.mail.sendMail(
+            import_session_files.length ? { ...rest, import_session_files } : rest,
+          ),
+        );
+      }),
+  );
+
+  server.tool(
+    "mail_save_draft",
+    "Save a mail to the Drafts folder. Note: LernSax only supports CREATING drafts — there is no in-place update, so each call adds a new draft (delete the old one via mail_delete if replacing). Returns an empty body (no draft id).",
+    {
+      ...CredsShape,
+      to: z.string().optional(),
+      cc: z.string().optional(),
+      bcc: z.string().optional(),
+      subject: z.string().optional(),
+      body_plain: z.string().optional(),
+      body_html: z.string().optional(),
     },
     async ({ email, password, ...rest }) =>
-      withClient({ email, password }, async (c) => ok(await c.mail.sendMail(rest))),
+      withClient({ email, password }, async (c) => ok(await c.mail.saveDraft(rest))),
   );
 
   server.tool(
@@ -402,6 +463,28 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
     { ...CredsShape, group: z.string().optional(), id: z.string() },
     async ({ email, password, group, id }) =>
       withClient({ email, password }, async (c) => ok({ url: await c.files.downloadUrl(group, id) })),
+  );
+
+  server.tool(
+    "files_download",
+    "Download a file inline as base64 (embedded resource). Files larger than ~6MB are not inlined — use files_download_url instead.",
+    { ...CredsShape, group: z.string().optional(), id: z.string() },
+    async ({ email, password, group, id }) =>
+      withClient({ email, password }, async (c) => {
+        const { name, size, data } = await c.files.download(group, id);
+        // Avoid blowing up the response with huge base64 payloads.
+        if (Math.max(size, data.length) > 6 * 1024 * 1024) {
+          const url = await c.files.downloadUrl(group, id);
+          return ok({
+            name,
+            size,
+            note: "File too large to inline — fetch it via this direct-download URL.",
+            url,
+          });
+        }
+        const base64 = Buffer.from(data).toString("base64");
+        return fileResult(id, name, size, base64);
+      }),
   );
 
   server.tool(
