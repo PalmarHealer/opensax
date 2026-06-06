@@ -2,9 +2,94 @@
   import Icon from "$lib/Icon.svelte";
   import { composeStore } from "$lib/composeStore.svelte";
   import RecipientPicker from "$lib/RecipientPicker.svelte";
+  import { invalidate } from "$app/navigation";
 
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let savedNote = $state(false);
+  let saving = false; // in-flight guard for autosave/save-on-close
+
+  async function saveDraft(): Promise<void> {
+    // Never persist an empty draft, and never overlap with an in-flight save.
+    if (saving || !composeStore.isNonEmpty()) return;
+    saving = true;
+    try {
+      const d = composeStore.draft;
+      const res = await fetch("/api/mail/save-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: d.to,
+          cc: d.cc,
+          bcc: d.bcc,
+          subject: d.subject,
+          body: d.body,
+          prevId: d.draftId,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        draftId?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        error = body.error ?? `HTTP ${res.status}`;
+        return;
+      }
+      // Retain the new draft's id so the next save deletes this version
+      // (LernSax save_draft can't update, only create) — avoids duplicates.
+      composeStore.setDraftId(body.draftId);
+      savedNote = true;
+      await invalidate("mail:list");
+    } catch (err) {
+      error = (err as Error).message;
+    } finally {
+      saving = false;
+    }
+  }
+
+  // Debounced autosave: persist ~3s after the last edit to any draft field.
+  let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    // Track the fields so the effect re-runs on every edit.
+    const d = composeStore.draft;
+    void d.to;
+    void d.cc;
+    void d.bcc;
+    void d.subject;
+    void d.body;
+    savedNote = false;
+    if (!composeStore.isNonEmpty()) return;
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      void saveDraft();
+    }, 5000);
+    return () => clearTimeout(autosaveTimer);
+  });
+
+  async function saveAndClose() {
+    clearTimeout(autosaveTimer);
+    await saveDraft();
+    composeStore.close();
+  }
+
+  async function discard() {
+    clearTimeout(autosaveTimer);
+    // If autosave already persisted a draft, remove it from the Drafts folder.
+    const id = composeStore.draft.draftId;
+    if (id) {
+      try {
+        await fetch("/api/mail/save-draft", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        await invalidate("mail:list");
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+    composeStore.discard();
+  }
 
   async function send(e: SubmitEvent) {
     e.preventDefault();
@@ -31,6 +116,22 @@
         error = (body as { error?: string }).error ?? `HTTP ${res.status}`;
         return;
       }
+      clearTimeout(autosaveTimer);
+      // If we were editing/autosaving a draft, remove it from Drafts now that
+      // the mail has actually been sent.
+      const draftId = composeStore.draft.draftId;
+      if (draftId) {
+        try {
+          await fetch("/api/mail/save-draft", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: draftId }),
+          });
+        } catch {
+          /* best-effort cleanup */
+        }
+      }
+      await invalidate("mail:list");
       composeStore.close();
     } catch (err) {
       error = (err as Error).message;
@@ -55,7 +156,7 @@
           aria-label={composeStore.minimized ? "Maximieren" : "Minimieren"}
         ><Icon name={composeStore.minimized ? "chevron-down" : "chevron-down"} size={14} class={composeStore.minimized ? "rotate-180" : ""} /></button>
         <button
-          onclick={() => composeStore.close()}
+          onclick={saveAndClose}
           class="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-red-400"
           title="Schließen"
           aria-label="Schließen"
@@ -99,13 +200,18 @@
         {/if}
 
         <footer class="flex items-center justify-between border-t border-zinc-800 px-3 py-2">
-          <button
-            type="button"
-            onclick={() => composeStore.close()}
-            class="rounded p-1.5 text-zinc-500 hover:bg-zinc-900 hover:text-red-400"
-            title="Verwerfen"
-            aria-label="Verwerfen"
-          ><Icon name="trash" size={14} /></button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              onclick={discard}
+              class="rounded p-1.5 text-zinc-500 hover:bg-zinc-900 hover:text-red-400"
+              title="Verwerfen"
+              aria-label="Verwerfen"
+            ><Icon name="trash" size={14} /></button>
+            {#if savedNote}
+              <span class="text-xs text-zinc-500">Entwurf gespeichert</span>
+            {/if}
+          </div>
           <button
             type="submit"
             disabled={busy}

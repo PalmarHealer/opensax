@@ -10,8 +10,9 @@
   let { data } = $props();
   const m = $derived(data.message);
   const flagged = $derived(Boolean(m.is_flagged));
-  const folders = $derived((data as unknown as { folders?: Array<{ id: string; name: string }> }).folders ?? []);
+  const folders = $derived((data as unknown as { folders?: Array<{ id: string; name: string; is_drafts?: boolean }> }).folders ?? []);
   const moveTargets = $derived(folders.filter((f) => f.id !== data.folderId));
+  const isDraft = $derived(folders.find((f) => f.id === data.folderId)?.is_drafts ?? false);
   let moveFormEl = $state<HTMLFormElement | undefined>();
   let moveTarget = $state("");
 
@@ -19,7 +20,7 @@
   // so the sidebar reflects it. Keyed on id so it fires once per message.
   $effect(() => { void m.id; invalidate("mail:list"); });
 
-  async function openCompose(mode: "reply" | "reply-all" | "forward") {
+  async function openCompose(mode: "reply" | "reply-all" | "forward" | "draft") {
     const u = new URL("/api/mail/compose-prefill", window.location.origin);
     u.searchParams.set("mode", mode);
     u.searchParams.set("folder", data.folderId);
@@ -61,31 +62,37 @@
       <Icon name="chevron-left" size={16} /> zurück
     </a>
     <div class="flex items-center gap-1">
-      <button onclick={() => openCompose("reply")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800">
-        <Icon name="chevron-left" size={14} /> Antworten
-      </button>
-      <button onclick={() => openCompose("reply-all")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Allen antworten">
-        Allen
-      </button>
-      <button onclick={() => openCompose("forward")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Weiterleiten">
-        <Icon name="chevron-right" size={14} /> Weiterleiten
-      </button>
-      <form method="POST" action="?/flag" use:enhance>
-        <input type="hidden" name="is_flagged" value={(!flagged).toString()} />
-        <button
-          class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
-          class:text-amber-300={flagged}
-          title={flagged ? "Markierung entfernen" : "Als wichtig markieren"}
-        >
-          <Icon name="star" size={14} /> {flagged ? "Markiert" : "Wichtig"}
+      {#if isDraft}
+        <button onclick={() => openCompose("draft")} class="flex items-center gap-1.5 rounded-md border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-sm text-indigo-300 hover:bg-indigo-500/20" title="Entwurf bearbeiten">
+          <Icon name="edit" size={14} /> Bearbeiten
         </button>
-      </form>
-      <form method="POST" action="?/flag" use:enhance>
-        <input type="hidden" name="is_unread" value="true" />
-        <button class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Als ungelesen markieren">
-          <Icon name="mail-opened" size={14} /> Ungelesen
+      {:else}
+        <button onclick={() => openCompose("reply")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800">
+          <Icon name="chevron-left" size={14} /> Antworten
         </button>
-      </form>
+        <button onclick={() => openCompose("reply-all")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Allen antworten">
+          Allen
+        </button>
+        <button onclick={() => openCompose("forward")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Weiterleiten">
+          <Icon name="chevron-right" size={14} /> Weiterleiten
+        </button>
+        <form method="POST" action="?/flag" use:enhance>
+          <input type="hidden" name="is_flagged" value={(!flagged).toString()} />
+          <button
+            class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
+            class:text-amber-300={flagged}
+            title={flagged ? "Markierung entfernen" : "Als wichtig markieren"}
+          >
+            <Icon name="star" size={14} /> {flagged ? "Markiert" : "Wichtig"}
+          </button>
+        </form>
+        <form method="POST" action="?/flag" use:enhance>
+          <input type="hidden" name="is_unread" value="true" />
+          <button class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Als ungelesen markieren">
+            <Icon name="mail-opened" size={14} /> Ungelesen
+          </button>
+        </form>
+      {/if}
       {#if moveTargets.length}
         <form method="POST" action="?/move" use:enhance bind:this={moveFormEl}>
           <input type="hidden" name="target_folder_id" bind:value={moveTarget} />
