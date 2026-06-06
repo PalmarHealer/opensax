@@ -113,6 +113,14 @@
     const t = page.url.searchParams.get("tab");
     return TABS.has(t as Tab) ? (t as Tab) : "profile";
   });
+  const SECTIONS = [
+    ["profile", "Profil", "settings"],
+    ["mail", "Mail", "mail"],
+    ["connections", "Verbindungen", "send"],
+    ["navigation", "Navigation", "list-check"],
+    ["account", "Account", "logout"],
+  ] as const;
+  const currentLabel = $derived(SECTIONS.find(([k]) => k === tab)?.[1] ?? "Einstellungen");
   function setTab(t: Tab) {
     const u = new URL(page.url);
     if (t === "profile") u.searchParams.delete("tab");
@@ -223,11 +231,31 @@
   }
 </script>
 
-<div class="grid h-full" style="grid-template-columns: 240px 1fr">
+<div class="grid h-full grid-cols-1 md:[grid-template-columns:240px_1fr]">
+  <!-- Section nav: collapsible <details> on mobile, static rail at md+ -->
+  <details class="border-b border-zinc-800 bg-zinc-900/30 md:hidden">
+    <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold">
+      <span>Einstellungen · {currentLabel}</span>
+      <Icon name="chevron-down" size={16} />
+    </summary>
+    <nav class="border-t border-zinc-800 p-2">
+      {#each SECTIONS as [k, label, icon]}
+        <button
+          class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition
+            {tab === k ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'}"
+          onclick={() => setTab(k as Tab)}
+        >
+          <Icon name={icon} size={16} />
+          {label}
+        </button>
+      {/each}
+    </nav>
+  </details>
+
   <!-- Tab rail -->
-  <aside class="flex h-full flex-col border-r border-zinc-800 bg-zinc-900/30 p-3">
+  <aside class="hidden h-full flex-col border-r border-zinc-800 bg-zinc-900/30 p-3 md:flex">
     <h1 class="mb-3 px-2 text-base font-semibold tracking-tight">Einstellungen</h1>
-    {#each [["profile", "Profil", "settings"], ["mail", "Mail", "mail"], ["connections", "Verbindungen", "send"], ["navigation", "Navigation", "list-check"], ["account", "Account", "logout"]] as [k, label, icon]}
+    {#each SECTIONS as [k, label, icon]}
       <button
         class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition
           {tab === k ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'}"
@@ -241,7 +269,7 @@
 
   <!-- Tab body -->
   <section class="overflow-auto">
-    <div class="mx-auto max-w-2xl px-8 py-8">
+    <div class="mx-auto max-w-2xl px-4 py-4 md:px-8 md:py-8">
       {#if tab === "profile"}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Profil</h2>
         <form method="POST" action="?/saveProfile" use:enhance class="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
@@ -431,7 +459,11 @@
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Navigation</h2>
 
         <section class="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Layout</h3>
+          <div class="mb-1 flex items-center justify-between gap-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Layout</h3>
+            <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">Nur für Desktop-Geräte</span>
+          </div>
+          <p class="mb-3 text-xs text-zinc-500">Auf Mobilgeräten wird immer die untere Tab-Leiste mit Menü verwendet.</p>
           <div class="grid grid-cols-2 gap-3">
             <button
               onclick={() => setMode("sidenav")}
@@ -465,10 +497,11 @@
         </section>
 
         <section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <div class="mb-3 flex items-center justify-between">
+          <div class="mb-1 flex items-center justify-between">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Tabs</h3>
             <p class="text-xs text-zinc-500">Drag &amp; Drop zum Verschieben</p>
           </div>
+          <p class="mb-3 text-xs text-zinc-500">Reihenfolge &amp; Sichtbarkeit gelten auch für die untere Leiste auf dem Handy (erste Einträge zuerst).</p>
 
           <p class="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Sichtbar</p>
           <ul

@@ -112,3 +112,30 @@ export function saveNavConfig(cfg: NavConfig): void {
 export function tabById(id: string): NavTab | undefined {
   return NAV_TABS.find((t) => t.id === id);
 }
+
+/**
+ * Pick up to `count` tabs for the mobile bottom bar. These come straight from
+ * the user's configured `visible` tabs IN THEIR ORDER (so reordering/hiding a
+ * tab in settings also reshapes the bottom bar), with "Übersicht" pinned first
+ * since it has no other dedicated mobile entry point. Tabs beyond `count` spill
+ * into the drawer's "Mehr" list.
+ */
+export function mobileBottomTabs(visible: NavTab[], count = 5): NavTab[] {
+  const home = tabById("home");
+  const picked: NavTab[] = [];
+  const seen = new Set<string>();
+  const add = (t: NavTab | undefined) => {
+    if (t && !seen.has(t.id)) {
+      seen.add(t.id);
+      picked.push(t);
+    }
+  };
+  // "Übersicht" is always the first bottom-bar entry.
+  add(home);
+  // Then the user's visible tabs, in their configured order.
+  for (const t of visible) {
+    if (picked.length >= count) break;
+    add(t);
+  }
+  return picked.slice(0, count);
+}

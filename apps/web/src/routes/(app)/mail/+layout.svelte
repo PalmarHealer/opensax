@@ -50,11 +50,36 @@
   function isSystemFolder(f: { is_inbox?: boolean; is_sent?: boolean; is_drafts?: boolean; is_trash?: boolean }): boolean {
     return Boolean(f.is_inbox || f.is_sent || f.is_drafts || f.is_trash);
   }
+
+  // Mobile master-detail: a message is open when the route has a messageId,
+  // i.e. the pathname goes one level deeper than /mail/{folderId}.
+  const messageOpen = $derived(/^\/mail\/[^/]+\/[^/]+/.test(page.url.pathname));
+  // Mobile folder drawer
+  let foldersOpen = $state(false);
+  $effect(() => {
+    void data.folderId;
+    foldersOpen = false;
+  });
 </script>
 
-<div class="grid h-full min-h-0" style="grid-template-rows: minmax(0,1fr); grid-template-columns: 240px 380px 1fr">
-  <!-- Folder rail -->
-  <aside class="flex h-full min-h-0 flex-col overflow-auto border-r border-zinc-800 bg-zinc-900/30 px-2 py-3">
+<div
+  class="grid h-full min-h-0 grid-rows-[minmax(0,1fr)] grid-cols-1 md:[grid-template-columns:240px_380px_1fr]"
+>
+  <!-- Folder rail: static column at md+, slide-in drawer below md -->
+  <!-- Mobile drawer backdrop -->
+  {#if foldersOpen}
+    <button
+      type="button"
+      class="fixed inset-0 z-30 bg-black/50 md:hidden"
+      onclick={() => (foldersOpen = false)}
+      aria-label="Schließen"
+    ></button>
+  {/if}
+  <aside
+    class="flex h-full min-h-0 flex-col overflow-auto border-r border-zinc-800 bg-zinc-900/30 px-2 py-3
+      max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-64 max-md:bg-zinc-950 max-md:transition-transform
+      {foldersOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'} md:translate-x-0"
+  >
     <button
       onclick={() => composeStore.openNew()}
       class="mx-1 mb-3 flex items-center justify-center gap-2 rounded-md bg-indigo-500 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-400"
@@ -97,8 +122,20 @@
     {/each}
   </aside>
 
-  <!-- Message list -->
-  <section class="flex h-full min-h-0 min-w-0 flex-col border-r border-zinc-800">
+  <!-- Message list: full-width on mobile, hidden when a message is open -->
+  <section class="h-full min-h-0 min-w-0 flex-col border-r border-zinc-800 md:flex {messageOpen ? 'hidden md:flex' : 'flex'}">
+    <!-- Mobile sub-header: open folder drawer -->
+    <div class="flex items-center gap-2 border-b border-zinc-800 bg-zinc-950/80 px-4 py-2 md:hidden">
+      <button
+        onclick={() => (foldersOpen = true)}
+        class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+      >
+        <Icon name="folder" size={14} /> Ordner
+      </button>
+      <span class="truncate text-sm font-medium text-zinc-400">
+        {data.folders.find((f) => f.id === data.folderId)?.name ?? "Ordner"}
+      </span>
+    </div>
     <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-2.5">
       {#if selected.size > 0}
         <div class="flex items-center gap-2">
@@ -175,8 +212,8 @@
     </ul>
   </section>
 
-  <!-- Detail slot -->
-  <main class="h-full min-w-0 overflow-auto">
+  <!-- Detail slot: full-width on mobile only when a message is open -->
+  <main class="h-full min-w-0 overflow-auto md:block {messageOpen ? 'block' : 'hidden md:block'}">
     {@render children()}
   </main>
 </div>

@@ -70,9 +70,9 @@
   });
 </script>
 
-<div class="grid h-full" style="grid-template-columns: 240px 1fr">
-  <!-- Conversation list -->
-  <aside class="flex h-full flex-col border-r border-zinc-800 bg-zinc-900/40">
+<div class="grid h-full grid-cols-1 md:[grid-template-columns:240px_1fr]">
+  <!-- Conversation list: full-width on mobile, hidden when a chat is explicitly opened -->
+  <aside class="h-full flex-col border-r border-zinc-800 bg-zinc-900/40 md:flex {activeFromUrl ? 'hidden md:flex' : 'flex'}">
     <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
       <h1 class="text-sm font-semibold uppercase tracking-wide text-zinc-400">Chats</h1>
       <button
@@ -103,8 +103,8 @@
     </div>
   </aside>
 
-  <!-- Active conversation -->
-  <main class="flex h-full flex-col">
+  <!-- Active conversation: full-width on mobile only when a chat is explicitly opened -->
+  <main class="h-full flex-col md:flex {activeFromUrl ? 'flex' : 'hidden md:flex'}">
     {#if !active}
       <div class="grid flex-1 place-items-center text-sm text-zinc-500">
         <div class="text-center">
@@ -116,10 +116,17 @@
         </div>
       </div>
     {:else}
-      <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
-        <div>
+      <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-3 md:px-6">
+        <div class="flex min-w-0 items-center gap-2">
+          <button
+            onclick={() => setActive(null)}
+            class="-ml-1 rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 md:hidden"
+            aria-label="Zurück"
+          ><Icon name="chevron-left" size={20} /></button>
+          <div class="min-w-0">
           <p class="text-sm font-semibold"><PersonChip name={partnerLabel(active)} login={active} /></p>
           <p class="text-[11px] text-zinc-500">{active}</p>
+          </div>
         </div>
         <button onclick={refresh} class="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
           <Icon name="refresh" size={14} /> Aktualisieren
