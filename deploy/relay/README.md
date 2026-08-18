@@ -16,7 +16,35 @@ Vienna container ──fetch(dispatcher=ProxyAgent)──► Tailscale ──►
 
 ## 1. German node (the relay)
 
-The node must already be on your tailnet (`tailscale status`). Then:
+The node must already be on your tailnet (`tailscale status`). Run the relay
+either as a container (recommended — no site-specific IPs baked into any file)
+or straight on the host.
+
+### As a container
+
+Copy this directory to the German node, then:
+
+```sh
+export RELAY_LISTEN=$(tailscale ip -4)   # this node's Tailscale IP
+export RELAY_ALLOW=100.x.y.z             # the Vienna node's Tailscale IP
+docker compose up -d --build
+```
+
+`docker-entrypoint.sh` renders `Listen`/`Allow` from those two variables at
+start-up, so `tinyproxy.conf` stays free of deployment-specific addresses.
+
+The compose file uses `network_mode: host` on purpose: with published ports,
+docker-proxy sits in the path and rewrites the source address, so tinyproxy
+would see the bridge gateway instead of the Vienna node and `Allow` would be
+meaningless. Host networking preserves the real source IP and lets `Listen`
+bind directly to the `tailscale0` address.
+
+`RELAY_ALLOW` may be a comma-separated list if more than one peer needs the
+relay. Leaving it unset logs a warning and falls back to "anything that can
+reach the listening address" — which is still tailnet-only, but drops the
+second layer.
+
+### On the host
 
 ```sh
 sudo apt-get update && sudo apt-get install -y tinyproxy
@@ -38,6 +66,7 @@ Notes:
   the public internet.
 - `FilterDefaultDeny Yes` + `filter` mean only `www.lernsax.de` can be reached;
   `ConnectPort 443` limits it to HTTPS. It is not a general-purpose open proxy.
+  A request for any other host gets `403 Filtered`.
 
 ## 2. Vienna deployment
 
@@ -73,7 +102,8 @@ docker compose exec lernsax-web wget -qO- --timeout=5 \
   --header 'Proxy: ' http://100.x.y.z:8888 ; echo
 
 # tinyproxy logs on the DE node show the CONNECT to www.lernsax.de:443
-sudo journalctl -u tinyproxy -f
+docker compose logs -f          # container
+sudo journalctl -u tinyproxy -f # host install
 ```
 
 To disable the relay, unset `LERNSAX_PROXY_URL` and redeploy — the app falls

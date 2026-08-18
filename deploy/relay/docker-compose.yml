@@ -1,0 +1,30 @@
+# Runs on the GERMAN Tailscale node — not part of the Vienna stack.
+#
+#   RELAY_LISTEN=$(tailscale ip -4) RELAY_ALLOW=<vienna-tailscale-ip> \
+#     docker compose up -d --build
+#
+# network_mode: host is deliberate. Published ports would put docker-proxy in
+# the path and rewrite the source address, which would defeat the `Allow`
+# check — tinyproxy would see the bridge gateway instead of the Vienna node.
+# Host networking keeps the real source IP and lets `Listen` bind straight to
+# the tailscale0 address, so the proxy is never reachable from the public
+# internet.
+services:
+  lernsax-relay:
+    build: .
+    container_name: lernsax-relay
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # This node's Tailscale IP — `tailscale ip -4`. Required.
+      RELAY_LISTEN: ${RELAY_LISTEN:?set to this node's Tailscale IP}
+      # Comma-separated list of tailnet peers allowed to use the relay,
+      # normally just the Vienna node's Tailscale IP.
+      RELAY_ALLOW: ${RELAY_ALLOW:-}
+    healthcheck:
+      # Proves tinyproxy is accepting connections on the tailnet address.
+      test: ["CMD", "nc", "-z", "-w", "2", "${RELAY_LISTEN}", "8888"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
