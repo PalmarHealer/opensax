@@ -16,6 +16,10 @@ services:
       # Docker-internal URL the DocumentServer uses to call our content/callback endpoints
       WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://lernsax-web:3000}
       OO_INTERNAL_HOST: ${OO_INTERNAL_HOST:-lernsax-onlyoffice}
+      # Relay all LernSax-bound traffic (JSON-RPC, WebDAV, OnlyOffice login)
+      # through a German egress proxy so LernSax sees a DE IP. Leave unset to
+      # talk to LernSax directly from the deployment.
+      LERNSAX_PROXY_URL: ${LERNSAX_PROXY_URL:-}
     ports:
       # Bind to BIND_HOST so only the reverse proxy on the same network can
       # reach us. Defaults to all interfaces — set BIND_HOST in .env to lock
@@ -41,6 +45,8 @@ services:
       LERNSAX_WEB_SESSION_KEY: ${LERNSAX_WEB_SESSION_KEY:?set a 32+ char secret}
       # Used to build the WWW-Authenticate resource_metadata URL on 401s.
       WEB_ORIGIN: ${WEB_ORIGIN:?set the public web URL}
+      # Relay LernSax-bound traffic through a German egress proxy (see web service).
+      LERNSAX_PROXY_URL: ${LERNSAX_PROXY_URL:-}
     ports:
       - "${BIND_HOST:-0.0.0.0}:8765:8765"
     volumes:

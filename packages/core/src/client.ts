@@ -1,6 +1,7 @@
 import { LernSaxSession, type Credentials, type SessionOptions } from "./session.js";
 import { WebDavClient, type WebDavOptions } from "./webdav.js";
 import { LernSaxWebClient, type WebClientOptions } from "./webClient.js";
+import { envProxyFetch } from "./proxyFetch.js";
 import { MailApi } from "./api/mail.js";
 import { TasksApi } from "./api/tasks.js";
 import { CalendarApi } from "./api/calendar.js";
@@ -49,9 +50,19 @@ export class LernSaxClient {
   readonly resources: ResourcesApi;
 
   constructor(credentials: Credentials, opts: ClientOptions = {}) {
-    this.session = new LernSaxSession(credentials, opts);
-    this.webdav = new WebDavClient(credentials, opts.webdav);
-    this.web = new LernSaxWebClient(credentials, opts.web);
+    // Relay all LernSax-bound traffic through the German egress proxy when
+    // LERNSAX_PROXY_URL is set. An explicit fetchImpl from the caller always
+    // wins, so tests and custom setups stay in control.
+    const relay = envProxyFetch();
+    const sessionOpts: SessionOptions = relay && !opts.fetchImpl ? { ...opts, fetchImpl: relay } : opts;
+    const webdavOpts: WebDavOptions =
+      relay && !opts.webdav?.fetchImpl ? { ...opts.webdav, fetchImpl: relay } : (opts.webdav ?? {});
+    const webOpts: WebClientOptions =
+      relay && !opts.web?.fetchImpl ? { ...opts.web, fetchImpl: relay } : (opts.web ?? {});
+
+    this.session = new LernSaxSession(credentials, sessionOpts);
+    this.webdav = new WebDavClient(credentials, webdavOpts);
+    this.web = new LernSaxWebClient(credentials, webOpts);
 
     this.mail = new MailApi(this.session);
     this.tasks = new TasksApi(this.session);

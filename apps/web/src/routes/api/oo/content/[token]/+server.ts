@@ -2,6 +2,7 @@ import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { ooVerifyToken } from "$lib/server/oo";
 import { getClientForSession } from "$lib/server/sessionStore";
+import { lernsaxFetch } from "$lib/server/lernsaxFetch";
 
 /**
  * Content endpoint that the OnlyOffice DocumentServer hits to fetch the
@@ -18,7 +19,7 @@ export const GET: RequestHandler = async ({ params }) => {
   const url = await client.files.downloadUrl(claims.group, claims.file_id);
   if (!url) throw error(404, "no download url");
 
-  const upstream = await fetch(url);
+  const upstream = await lernsaxFetch(url);
   if (!upstream.ok) throw error(upstream.status, "upstream fetch failed");
 
   // Pass through with a sane content-type / disposition.

@@ -1,0 +1,4 @@
+# tinyproxy domain filter — only LernSax may be reached through this relay.
+# Referenced by `Filter` in tinyproxy.conf with FilterDefaultDeny Yes.
+^www\.lernsax\.de$
+^lernsax\.de$

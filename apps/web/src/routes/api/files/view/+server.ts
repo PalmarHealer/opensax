@@ -1,5 +1,6 @@
 import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
+import { lernsaxFetch } from "$lib/server/lernsaxFetch";
 
 /**
  * Proxy a LernSax file through the SvelteKit server. We strip X-Frame-Options
@@ -21,8 +22,8 @@ export const GET: RequestHandler = async ({ locals, url, request }) => {
 
   // LernSax sometimes returns URLs with unencoded `%` in filenames, which
   // breaks SvelteKit's fetch wrapper (decodeURIComponent throws). Re-normalize
-  // the path through encodeURI and bypass the wrapper by using global fetch —
-  // this is an external request, the wrapper offers no benefit here.
+  // the path through encodeURI and bypass the wrapper — this is an external
+  // request, the wrapper offers no benefit here.
   const safeUrl = normalizeUrl(downloadUrl);
 
   // Forward Range requests (so PDF.js can stream).
@@ -30,7 +31,7 @@ export const GET: RequestHandler = async ({ locals, url, request }) => {
   const range = request.headers.get("range");
   if (range) headers.range = range;
 
-  const upstream = await globalThis.fetch(safeUrl, { headers });
+  const upstream = await lernsaxFetch(safeUrl, { headers });
 
   if (!upstream.ok && upstream.status !== 206) {
     throw error(upstream.status, `upstream ${upstream.status}`);

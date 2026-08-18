@@ -11,6 +11,9 @@
     }
   },
   "files": ["dist"],
+  "dependencies": {
+    "undici": "^7.10.0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",

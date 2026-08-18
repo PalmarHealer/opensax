@@ -1,7 +1,8 @@
 import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
+import { lernsaxFetch } from "$lib/server/lernsaxFetch";
 
-export const GET: RequestHandler = async ({ locals, url, fetch }) => {
+export const GET: RequestHandler = async ({ locals, url }) => {
   const c = locals.client!;
   const folder_id = url.searchParams.get("folder_id");
   const message_id = url.searchParams.get("message_id");
@@ -12,7 +13,7 @@ export const GET: RequestHandler = async ({ locals, url, fetch }) => {
   const info = await c.mail.getAttachmentSessionFile({ folder_id, message_id, file_id }).catch(() => null);
   if (!info?.download_url) throw error(404, "no download URL");
 
-  const upstream = await fetch(info.download_url);
+  const upstream = await lernsaxFetch(info.download_url);
   if (!upstream.ok) throw error(upstream.status, "upstream failed");
 
   const out = new Headers();
