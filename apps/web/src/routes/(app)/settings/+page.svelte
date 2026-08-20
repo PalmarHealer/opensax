@@ -28,6 +28,12 @@
       };
     };
     connections: { count: number; ttl_days: number | null; stored: string[]; scope?: string; records: Array<{ id: string; client_name: string; scopes: string[]; created_at: number; last_used_at: number }> };
+    davinci?: {
+      present: boolean;
+      scope?: string;
+      stored: string[];
+      record: { endpoint: string; resolved_endpoint: string | null; source_type: string | null; username: string; has_password: boolean; class_code: string | null; teacher_code: string | null; include_supervisions: boolean } | null;
+    };
     cache: Record<string, { ttl_seconds?: number; ttl_minutes?: string | number; scope: string; stored: string[] }>;
     not_stored: string[];
   }
@@ -805,6 +811,22 @@
                     {#each storage.connections.records as c}
                       <li>· {c.client_name} — letzte Nutzung {fmtTs(c.last_used_at)}</li>
                     {/each}
+                  </ul>
+                {/if}
+              </div>
+
+              <div>
+                <p class="font-medium">
+                  Stundenplan-Zugang ({storage.davinci?.present ? "hinterlegt" : "nicht hinterlegt"})
+                </p>
+                <p class="text-xs text-zinc-500">{storage.davinci?.scope ?? "pro LernSax-Account"}.</p>
+                <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
+                  {#each storage.davinci?.stored ?? [] as line}<li>· {line}</li>{/each}
+                </ul>
+                {#if storage.davinci?.record}
+                  <ul class="mt-2 space-y-1 text-xs text-zinc-400">
+                    <li>· {storage.davinci.record.endpoint} ({storage.davinci.record.source_type ?? "unbekannt"})</li>
+                    <li>· Benutzer „{storage.davinci.record.username}"{storage.davinci.record.has_password ? ", Passwort gespeichert" : ""}</li>
                   </ul>
                 {/if}
               </div>

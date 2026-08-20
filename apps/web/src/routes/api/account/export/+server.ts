@@ -2,6 +2,7 @@ import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { getCredentialsForSession, getUserIdForSession, listSessionsForUser } from "$lib/server/sessionStore";
 import { listForUser } from "$lib/server/connectionStore";
+import { loadConfig as loadDavinciConfig } from "$lib/server/davinciStore";
 
 const COOKIE = "lernsax_sid";
 
@@ -19,11 +20,26 @@ export const GET: RequestHandler = async ({ cookies }) => {
 
   const connections = user_id ? listForUser(user_id) : [];
   const sessionsList = user_id ? listSessionsForUser(user_id, sid) : [];
+  // Second set of credentials on file, for the school's timetable server. It
+  // is stored the same way and belongs in an export that calls itself complete.
+  const davinci = user_id ? loadDavinciConfig(user_id) : null;
   const dump = {
     exported_at: new Date().toISOString(),
     note: "Vollständiger Export aller Daten, die OpenSax zu deinem Account speichert. Die Anmeldedaten unten lagen verschlüsselt (AES-256-GCM) auf dem Server und wurden nur für diesen Export entschlüsselt.",
     user_id: user_id ?? null,
     credentials: { email: creds.email, password: creds.password },
+    davinci: davinci
+      ? {
+          endpoint: davinci.endpoint,
+          resolved_endpoint: davinci.resolvedEndpoint ?? null,
+          source_type: davinci.sourceType ?? null,
+          username: davinci.username,
+          password: davinci.password,
+          class_code: davinci.classCode ?? null,
+          teacher_code: davinci.teacherCode ?? null,
+          include_supervisions: davinci.includeSupervisions ?? false,
+        }
+      : null,
     sessions: sessionsList.map((s) => ({
       device_id: s.device_id,
       current: s.isCurrent,

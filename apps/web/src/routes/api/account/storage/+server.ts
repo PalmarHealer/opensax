@@ -2,6 +2,7 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { listForUser } from "$lib/server/connectionStore";
 import { getUserIdForSession, listSessionsForUser } from "$lib/server/sessionStore";
+import { loadConfig as loadDavinciConfig } from "$lib/server/davinciStore";
 
 const COOKIE = "lernsax_sid";
 
@@ -25,6 +26,8 @@ export const GET: RequestHandler = async ({ cookies }) => {
     last_used_at: c.last_used_at,
   })) : [];
   const deviceSessions = user_id ? listSessionsForUser(user_id, sid) : [];
+  // Passwort bleibt draußen — dafür gibt es /api/account/export.
+  const davinci = user_id ? loadDavinciConfig(user_id) : null;
 
   return json({
     session: {
@@ -71,8 +74,30 @@ export const GET: RequestHandler = async ({ cookies }) => {
       records: connections,
       scope: "pro LernSax-Account (geräteübergreifend)",
     },
+    davinci: {
+      present: !!davinci,
+      scope: "pro LernSax-Account (geräteübergreifend)",
+      stored: [
+        "AES-256-GCM-verschlüsselte Zugangsdaten des Stundenplan-Servers deiner Schule",
+        "Endpoint wie eingegeben, plus die beim Test aufgelöste URL und die erkannte Quellenart",
+        "Optionale Filter: Klasse, Lehrer-Kürzel, Aufsichten anzeigen",
+      ],
+      record: davinci
+        ? {
+            endpoint: davinci.endpoint,
+            resolved_endpoint: davinci.resolvedEndpoint ?? null,
+            source_type: davinci.sourceType ?? null,
+            username: davinci.username,
+            has_password: !!davinci.password,
+            class_code: davinci.classCode ?? null,
+            teacher_code: davinci.teacherCode ?? null,
+            include_supervisions: davinci.includeSupervisions ?? false,
+          }
+        : null,
+    },
     cache: {
       contacts: { ttl_seconds: 60, scope: "im Arbeitsspeicher, pro Benutzer", stored: ["Login", "Anzeigename", "Online-Flag", "Gruppen"] },
+      davinci_dataset: { ttl_minutes: 5, scope: "im Arbeitsspeicher, pro Benutzer", stored: ["Stundenplan-Datensatz der Schule", "eTag des Servers"] },
       files_list: { ttl_seconds: 60, scope: "im Arbeitsspeicher, pro Gruppe", stored: ["Datei- und Ordner-Auflistung"] },
       lernsax_session: { ttl_minutes: "≈30 (LernSax-seitig); proaktiver Reload nach 4 min Idle", scope: "im Arbeitsspeicher, Client-Objekt", stored: ["LernSax-Session-ID", "Profil (whoami)", "Gruppenmitgliedschaften"] },
     },
