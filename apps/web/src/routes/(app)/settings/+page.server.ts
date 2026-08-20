@@ -2,7 +2,7 @@ import { fail } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { getUserIdForSession } from "$lib/server/sessionStore";
 import { clearConfig, loadConfig, publicConfig, saveConfig } from "$lib/server/davinciStore";
-import { testDaVinciConnection } from "@lernsax/core";
+import { probeDaVinciSource } from "@lernsax/core";
 
 export const load: PageServerLoad = async ({ locals }) => {
   const c = locals.client!;
@@ -84,13 +84,19 @@ export const actions: Actions = {
       includeSupervisions: data.get("includeSupervisions") === "1",
     };
 
-    const probe = await testDaVinciConnection(cfg);
+    const probe = await probeDaVinciSource(cfg);
     if (!probe.ok) return fail(400, { scope: "davinci", error: probe.error });
 
-    // Store the URL that answered, not the one the user typed: otherwise every
-    // later page load re-runs the https attempt and eats a connect timeout.
-    saveConfig(user_id, { ...cfg, endpoint: probe.resolvedEndpoint });
-    return { ok: true, scope: "davinci", info: probe.info };
+    // Keep `endpoint` as typed so the field reads back the way the user wrote
+    // it, and remember alongside it what the probe found: which URL answered
+    // and whether this is a live InfoServer or a generated HTML export. Later
+    // page loads use that and never guess again.
+    saveConfig(user_id, {
+      ...cfg,
+      resolvedEndpoint: probe.probe.resolvedEndpoint,
+      sourceType: probe.probe.kind,
+    });
+    return { ok: true, scope: "davinci", info: probe.probe.info, sourceType: probe.probe.kind };
   },
 
   clearDavinci: async ({ locals }) => {

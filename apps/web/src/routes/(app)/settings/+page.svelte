@@ -467,9 +467,18 @@
               class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-500"
             />
             <span class="mt-1 block text-[11px] text-zinc-500">
-              Host genügt — <code>/daVinciIS.dll</code> wird ergänzt. Ohne Schema wird erst HTTPS,
-              dann HTTP probiert; die meisten Schulserver sprechen nur HTTP.
+              Host oder Adresse des HTML-Vertretungsplans. Ohne Schema wird erst HTTPS, dann HTTP
+              probiert — mit <code>https://</code> oder <code>http://</code> davor bleibt es dabei.
             </span>
+            {#if data.davinci?.resolvedEndpoint}
+              <span class="mt-1 block text-[11px] text-zinc-500">
+                Erkannt als
+                <span class="text-zinc-400">
+                  {data.davinci.sourceType === "html" ? "HTML-Export" : "InfoServer"}
+                </span>
+                · <code class="text-zinc-400">{data.davinci.resolvedEndpoint}</code>
+              </span>
+            {/if}
           </label>
 
           <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
