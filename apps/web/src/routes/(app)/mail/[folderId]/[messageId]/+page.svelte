@@ -45,11 +45,11 @@
 </script>
 
 <article class="mx-auto flex h-full max-w-3xl flex-col px-8 py-6">
-  <header class="mb-4 flex items-center justify-between gap-3">
+  <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <a href="/mail?folder={encodeURIComponent(data.folderId)}" class="inline-flex items-center gap-1 text-sm text-indigo-400 hover:text-indigo-300">
       <Icon name="chevron-left" size={16} /> zurück
     </a>
-    <div class="flex items-center gap-1">
+    <div class="flex flex-wrap items-center gap-1">
       <button onclick={() => openCompose("reply")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800">
         <Icon name="chevron-left" size={14} /> Antworten
       </button>

@@ -41,7 +41,7 @@
 </script>
 
 {#if composeStore.open}
-  <div class="fixed bottom-0 right-6 z-50 flex flex-col rounded-t-2xl border border-zinc-800 bg-zinc-950 shadow-2xl
+  <div class="fixed bottom-0 right-2 z-50 flex max-w-[calc(100vw-1rem)] flex-col rounded-t-2xl border border-zinc-800 bg-zinc-950 pb-[env(safe-area-inset-bottom)] shadow-2xl md:right-6
     {composeStore.minimized ? 'w-72 h-10' : 'w-[min(560px,calc(100vw-2rem))] h-[min(640px,calc(100vh-2rem))]'}">
     <header class="flex items-center justify-between gap-2 border-b border-zinc-800 px-3 py-2">
       <p class="truncate text-sm font-medium">

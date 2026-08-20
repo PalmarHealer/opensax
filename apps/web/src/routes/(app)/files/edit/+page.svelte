@@ -86,8 +86,8 @@
 </script>
 
 <div class="grid h-full" style="grid-template-rows: auto 1fr">
-  <header class="flex items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
-    <div class="flex min-w-0 items-center gap-1 overflow-x-auto">
+  <header class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-zinc-800 bg-zinc-950/80 px-4 py-3 md:flex-nowrap md:px-6">
+    <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
       <button
         class="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
         onclick={() => navTo("/")}

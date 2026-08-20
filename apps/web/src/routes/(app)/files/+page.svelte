@@ -5,6 +5,7 @@
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
   import PersonChip from "$lib/PersonChip.svelte";
+  import { media } from "$lib/mediaQuery.svelte";
 
   type Entry = (typeof data.children)[number];
 
@@ -23,6 +24,18 @@
     }
   }
   function closeMenu() { menu = null; }
+  // Clamp the context menu so it never renders off-screen on small viewports.
+  const MENU_W = 192; // w-48
+  const MENU_H = 260; // rough max height of the menu
+  const menuPos = $derived.by(() => {
+    if (!menu) return { x: 0, y: 0 };
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    return {
+      x: Math.max(4, Math.min(menu.x, vw - MENU_W - 4)),
+      y: Math.max(4, Math.min(menu.y, vh - MENU_H - 4)),
+    };
+  });
   $effect(() => {
     if (!menu) return;
     const onDoc = (e: MouseEvent) => {
@@ -358,6 +371,73 @@
           {/if}
         </div>
       </div>
+    {:else if media.mobile}
+      <div class="h-full overflow-auto">
+        <div class="flex items-center gap-2 border-b border-zinc-800 px-4 py-2 text-xs uppercase tracking-wide text-zinc-500">
+          <span>Sortieren:</span>
+          <button class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:text-zinc-200 {sortBy === 'name' ? 'text-zinc-200' : ''}" onclick={() => toggleSort("name")}>
+            Name {#if sortBy === "name"}<Icon name="chevron-down" size={12} class={sortDir === "asc" ? "rotate-180" : ""} />{/if}
+          </button>
+          <button class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:text-zinc-200 {sortBy === 'modified' ? 'text-zinc-200' : ''}" onclick={() => toggleSort("modified")}>
+            Geändert {#if sortBy === "modified"}<Icon name="chevron-down" size={12} class={sortDir === "asc" ? "rotate-180" : ""} />{/if}
+          </button>
+          <button class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:text-zinc-200 {sortBy === 'size' ? 'text-zinc-200' : ''}" onclick={() => toggleSort("size")}>
+            Größe {#if sortBy === "size"}<Icon name="chevron-down" size={12} class={sortDir === "asc" ? "rotate-180" : ""} />{/if}
+          </button>
+        </div>
+        <ul>
+          {#each sortedChildren as e}
+            {@const canModify = rowCanModify(e)}
+            {@const canRead = rowCanRead(e)}
+            {@const isLocked = e.type === "file" && !canRead}
+            {@const showMenu = e.type === "folder" ? canModify : (canRead || canModify)}
+            <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+            <li
+              class="flex items-center gap-3 border-b border-zinc-900 px-4 py-3 transition
+                {isLocked ? 'opacity-60' : 'cursor-pointer hover:bg-zinc-900/50'}"
+              onclick={() => activate(e)}
+              onkeydown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); activate(e); } }}
+              oncontextmenu={(ev) => { ev.preventDefault(); if (showMenu) openMenuFor(e, ev, true); }}
+              tabindex="0"
+              role="button"
+              aria-label={e.name}
+              title={isLocked ? "Kein Zugriff" : e.name}
+            >
+              <Icon name={e.type === "folder" ? "folder" : "file"} size={20} class={e.type === "folder" ? "shrink-0 text-amber-400" : "shrink-0 text-zinc-400"} />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="truncate {e.type === 'folder' ? 'font-medium' : ''}">{e.name}</span>
+                  {#if e.versions && e.versions.length > 1}
+                    <span class="shrink-0 rounded-full border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400" title="{e.versions.length} Versionen">
+                      v{e.versions.length}
+                    </span>
+                  {/if}
+                </div>
+                <div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-zinc-500">
+                  <span>{e.type === "folder" ? fmtSize(e.aggregation?.size) : fmtSize(e.size)}</span>
+                  <span>·</span>
+                  <span>{fmtDate(e.modified?.date)}</span>
+                  {#if e.created?.user?.login}
+                    <span>·</span>
+                    <span class="truncate" onclick={(ev) => ev.stopPropagation()} role="presentation"><PersonChip name={e.created?.user?.name_hr} login={e.created?.user?.login} /></span>
+                  {/if}
+                </div>
+              </div>
+              {#if showMenu}
+                <div class="shrink-0" onclick={(ev) => ev.stopPropagation()} onkeydown={(ev) => ev.stopPropagation()} role="presentation">
+                  <button
+                    type="button"
+                    class="grid h-9 w-9 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                    aria-haspopup="menu"
+                    aria-label="Aktionen"
+                    onclick={(ev) => openMenuFor(e, ev, false)}
+                  ><Icon name="dots-vertical" size={18} /></button>
+                </div>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      </div>
     {:else}
       <div class="h-full overflow-auto">
         <table class="w-full text-sm">
@@ -449,7 +529,7 @@
   <div
     id="files-context-menu"
     role="menu"
-    style="position: fixed; left: {Math.min(menu.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 192)}px; top: {Math.min(menu.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - 240)}px;"
+    style="position: fixed; left: {menuPos.x}px; top: {menuPos.y}px;"
     class="z-50 w-48 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-2xl"
   >
     {#if e.type === "file" && canRead}
@@ -521,7 +601,9 @@
 {#if versionsFor}
   {@const cur = versionsFor}
   <aside
-    class="fixed right-0 top-0 z-40 flex h-full w-96 flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl"
+    class={media.mobile
+      ? "fixed inset-0 z-50 flex h-full w-full flex-col bg-zinc-950 shadow-2xl"
+      : "fixed right-0 top-0 z-40 flex h-full w-96 flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl"}
   >
     <header class="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
       <div class="min-w-0">

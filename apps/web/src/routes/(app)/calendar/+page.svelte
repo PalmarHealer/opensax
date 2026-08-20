@@ -86,7 +86,7 @@
 </script>
 
 <div class="grid h-full" style="grid-template-rows: auto 1fr">
-  <header class="flex items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
+  <header class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
     <div class="flex items-center gap-2">
       <button onclick={() => navMonth(-1)} class="grid h-8 w-8 place-items-center rounded-md border border-zinc-800 bg-zinc-900 hover:bg-zinc-800" aria-label="Vorheriger Monat">
         <Icon name="chevron-left" size={16} />
@@ -130,21 +130,21 @@
           {@const dayEntries = entriesByDay.get(key) ?? []}
           {@const holiday = holidaysByDay.get(key)?.[0]}
           <button
-            class="group flex flex-col items-stretch gap-1 px-2 py-1.5 text-left transition hover:bg-zinc-900/40
+            class="group flex min-w-0 flex-col items-stretch gap-1 p-1 text-left transition hover:bg-zinc-900/40 md:px-2 md:py-1.5
               {inMonth ? '' : 'bg-zinc-950/60 text-zinc-600'}
               {key === todayKey ? 'bg-indigo-500/10' : ''}"
             disabled={!canWrite}
             onclick={() => { if (canWrite) { showCreate = true; createDate = key; } }}
           >
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold {key === todayKey ? 'text-indigo-300' : ''}">{d.getDate()}</span>
+            <div class="flex min-w-0 items-center justify-between gap-1">
+              <span class="text-[10px] font-semibold md:text-xs {key === todayKey ? 'text-indigo-300' : ''}">{d.getDate()}</span>
               {#if holiday}
-                <span class="truncate rounded-full bg-amber-500/10 px-1.5 text-[10px] font-medium text-amber-300" title={holiday.title}>{holiday.title}</span>
+                <span class="min-w-0 truncate rounded-full bg-amber-500/10 px-1.5 text-[9px] font-medium text-amber-300 md:text-[10px]" title={holiday.title}>{holiday.title}</span>
               {/if}
             </div>
-            <div class="space-y-0.5">
+            <div class="min-w-0 space-y-0.5">
               {#each dayEntries.slice(0, 3) as e}
-                <div class="truncate rounded bg-indigo-500/15 px-1.5 py-0.5 text-[11px] font-medium text-indigo-200" title={e.title}>{e.title}</div>
+                <div class="truncate rounded bg-indigo-500/15 px-1 py-0.5 text-[10px] font-medium text-indigo-200 md:px-1.5 md:text-[11px]" title={e.title}>{e.title}</div>
               {/each}
               {#if dayEntries.length > 3}
                 <div class="text-[10px] text-zinc-500">+{dayEntries.length - 3} weitere</div>
@@ -170,7 +170,7 @@
       <span class="mb-1 block text-xs font-medium text-zinc-400">Titel</span>
       <input name="title" required class="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
     </label>
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label class="block">
         <span class="mb-1 block text-xs font-medium text-zinc-400">Start</span>
         <input name="start" type="datetime-local" required value="{createDate}T09:00" class="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-indigo-500" />

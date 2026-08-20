@@ -5,6 +5,7 @@
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
   import { sanitizeHtml } from "$lib/linkify";
+  import { media } from "$lib/mediaQuery.svelte";
 
   let { data } = $props();
   const groupValue = $derived(data.group ?? "");
@@ -26,7 +27,30 @@
   }
 </script>
 
+{#if media.mobile}
+<div class="flex h-full flex-col">
+  {#if data.current}
+    <div class="flex shrink-0 items-center gap-2 border-b border-zinc-800 bg-zinc-900/30 px-2 py-2">
+      <button
+        onclick={() => selectPage(null)}
+        class="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+      >
+        <Icon name="chevron-left" size={16} /> Übersicht
+      </button>
+    </div>
+    <div class="flex-1 overflow-auto">{@render content()}</div>
+  {:else}
+    <div class="flex-1 overflow-auto">{@render sidebar()}</div>
+  {/if}
+</div>
+{:else}
 <div class="grid h-full" style="grid-template-columns: 280px 1fr">
+  {@render sidebar()}
+  {@render content()}
+</div>
+{/if}
+
+{#snippet sidebar()}
   <aside class="flex h-full min-w-0 flex-col border-r border-zinc-800 bg-zinc-900/30">
     <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
       <h2 class="text-sm font-semibold">Wiki</h2>
@@ -45,7 +69,9 @@
       {/each}
     </nav>
   </aside>
+{/snippet}
 
+{#snippet content()}
   <main class="overflow-auto">
     {#if !data.group}
       <p class="p-8 text-center text-sm text-zinc-500">Keine Gruppe gewählt.</p>
@@ -70,7 +96,7 @@
       </article>
     {/if}
   </main>
-</div>
+{/snippet}
 
 <Modal open={creating} onclose={() => (creating = false)} title="Neue Wiki-Seite">
   <form method="POST" action="?/create" use:enhance={() => async ({ update }) => { await update(); creating = false; }} class="space-y-3">

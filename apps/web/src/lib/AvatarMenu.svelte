@@ -62,7 +62,7 @@
       "top-left":     "left-0 bottom-full mb-4",
       "right-bottom": "left-full bottom-0 ml-5",
     }[placement]}
-    <div role="menu" class="absolute z-30 w-60 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl {placementClass}">
+    <div role="menu" class="absolute z-30 w-60 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl {placementClass}">
       <div class="flex items-center gap-3 border-b border-zinc-800 px-3 py-3">
         <div
           class="grid h-10 w-10 place-items-center rounded-full text-sm font-semibold"

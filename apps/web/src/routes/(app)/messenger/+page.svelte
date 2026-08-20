@@ -5,6 +5,7 @@
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
   import PersonChip from "$lib/PersonChip.svelte";
+  import { media } from "$lib/mediaQuery.svelte";
 
   let { data } = $props();
 
@@ -27,7 +28,11 @@
 
   // Active conversation lives in the URL (?with=) so the layout switch / back/fwd preserves it.
   const activeFromUrl = $derived(page.url.searchParams.get("with"));
-  const active = $derived<string | null>(activeFromUrl || partners[0] || null);
+  // Desktop auto-selects the first partner; on mobile the list stays visible until
+  // the user explicitly opens a conversation via ?with=.
+  const active = $derived<string | null>(
+    media.mobile ? (activeFromUrl || null) : (activeFromUrl || partners[0] || null),
+  );
   function setActive(login: string | null) {
     const u = new URL(page.url);
     if (login) u.searchParams.set("with", login);
@@ -69,9 +74,10 @@
   });
 </script>
 
-<div class="grid h-full" style="grid-template-columns: 240px 1fr">
+<div class="grid h-full" style={media.mobile ? "grid-template-columns: 1fr" : "grid-template-columns: 240px 1fr"}>
   <!-- Conversation list -->
-  <aside class="flex h-full flex-col border-r border-zinc-800 bg-zinc-900/40">
+  {#if !media.mobile || !active}
+  <aside class="flex h-full min-w-0 flex-col border-zinc-800 bg-zinc-900/40 {media.mobile ? '' : 'border-r'}">
     <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
       <h1 class="text-sm font-semibold uppercase tracking-wide text-zinc-400">Chats</h1>
       <button
@@ -101,9 +107,11 @@
       {/each}
     </div>
   </aside>
+  {/if}
 
   <!-- Active conversation -->
-  <main class="flex h-full flex-col">
+  {#if !media.mobile || active}
+  <main class="flex h-full min-w-0 flex-col">
     {#if !active}
       <div class="grid flex-1 place-items-center text-sm text-zinc-500">
         <div class="text-center">
@@ -115,10 +123,19 @@
         </div>
       </div>
     {:else}
-      <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
-        <div>
-          <p class="text-sm font-semibold"><PersonChip name={partnerLabel(active)} login={active} /></p>
-          <p class="text-[11px] text-zinc-500">{active}</p>
+      <header class="flex items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-950/80 py-3 {media.mobile ? 'px-3' : 'px-6'}">
+        <div class="flex min-w-0 items-center gap-2">
+          {#if media.mobile}
+            <button
+              onclick={() => setActive(null)}
+              class="-ml-1 grid h-9 shrink-0 place-items-center gap-1 rounded-md px-2 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+              aria-label="Zurück zu Chats"
+            ><span class="flex items-center gap-1"><Icon name="chevron-left" size={16} /> Chats</span></button>
+          {/if}
+          <div class="min-w-0">
+            <p class="truncate text-sm font-semibold"><PersonChip name={partnerLabel(active)} login={active} /></p>
+            <p class="truncate text-[11px] text-zinc-500">{active}</p>
+          </div>
         </div>
         <button onclick={refresh} class="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
           <Icon name="refresh" size={14} /> Aktualisieren
@@ -144,7 +161,7 @@
         method="POST"
         action="?/send"
         use:enhance={() => async ({ update }) => { await update({ reset: false }); draft = ""; }}
-        class="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-4 py-3"
+        class="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 py-3 {media.mobile ? 'px-3' : 'px-4'}"
       >
         <input type="hidden" name="to_login" value={active} />
         <input
@@ -152,14 +169,15 @@
           bind:value={draft}
           placeholder="Nachricht…"
           required
-          class="flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+          class="min-w-0 flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm outline-none focus:border-indigo-500"
         />
-        <button class="grid h-9 w-9 place-items-center rounded-full bg-indigo-500 text-white hover:bg-indigo-400" aria-label="Senden">
+        <button class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-indigo-500 text-white hover:bg-indigo-400" aria-label="Senden">
           <Icon name="send" size={16} />
         </button>
       </form>
     {/if}
   </main>
+  {/if}
 </div>
 
 <Modal open={newChatOpen} onclose={() => (newChatOpen = false)} title="Neuer Chat" width="max-w-lg">

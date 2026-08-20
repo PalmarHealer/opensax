@@ -74,7 +74,7 @@
 {#if open}
   <div class="fixed inset-0 z-40" onclick={hide} role="presentation"></div>
   <div
-    class="fixed z-50 w-72 cursor-default rounded-xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
+    class="fixed z-50 w-72 max-w-[calc(100vw-1rem)] cursor-default rounded-xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
     style={popoverStyle}
     role="dialog"
   >
