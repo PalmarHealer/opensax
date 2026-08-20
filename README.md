@@ -55,7 +55,8 @@ LERNSAX_WEB_SESSION_KEY=<32+ char secret>
 | **Notizen** | Kartengrid mit 6 Farben, Inline-Edit |
 | **Chat** | Discord-Style Bubbles · Konversationsliste mit Last-Message-Preview · Neuer Chat aus Gruppen-Mitgliedern (Online-Indikator + Suche) oder manueller Email · Aktiver Chat in URL `?with=` |
 | **Dateien** | Drive-Browser mit Drag&Drop-Upload · Quota-Bar · Click-anywhere auf Zeile · **Inline-Preview** für PDF/Bild/Text via Server-Proxy (kein Fullscreen) · Datei erscheint als "Sub-Ordner" im Breadcrumb · Forced-Save-Download · Mkdir/Rename/Delete |
-| **Settings** | Tab-Rail mit URL-State `?tab=` · Profil mit allen LernSax-Feldern · Mail-Signatur · **Layout-Picker** (Sidenav vs. Topnav) · **Drag&Drop Tab-Reordering** mit Live-Shift, Drop-into-Hidden-Zone |
+| **Stundenplan** | Wochenraster aus dem **DaVinci-InfoServer** der Schule (nicht LernSax) · Vertretungen, Entfall und Verlegungen farbig markiert · Auto-Filter auf die eigene Klasse/Lehrkraft über den DaVinci-Login · Zugang pro Nutzer in Settings, verschlüsselt gespeichert |
+| **Settings** | Tab-Rail mit URL-State `?tab=` · Profil mit allen LernSax-Feldern · Mail-Signatur · **Stundenplan-Zugang** (Endpoint/Login mit Verbindungstest) · **Layout-Picker** (Sidenav vs. Topnav) · **Drag&Drop Tab-Reordering** mit Live-Shift, Drop-into-Hidden-Zone |
 
 ### Layout-Modi
 

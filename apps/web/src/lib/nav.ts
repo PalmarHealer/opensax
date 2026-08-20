@@ -13,6 +13,8 @@ export const ROUTE_SCOPES: Record<string, Scope[]> = {
   "/":          ["personal"],
   "/tasks":     ["personal", "class"],
   "/calendar":  ["personal", "class"],
+  // DaVinci is a separate server, so LernSax group scoping doesn't apply.
+  "/stundenplan": ["personal"],
   "/board":     ["school", "class"],
   "/wiki":      ["school", "class"],
   "/forum":     ["school", "class"],
@@ -54,6 +56,7 @@ export const NAV_TABS: NavTab[] = [
   { id: "mail",      href: "/mail",      label: "Mail",          icon: "mail" },
   { id: "tasks",     href: "/tasks",     label: "Aufgaben",      icon: "list-check" },
   { id: "calendar",  href: "/calendar",  label: "Kalender",      icon: "calendar" },
+  { id: "stundenplan", href: "/stundenplan", label: "Stundenplan", icon: "table" },
   { id: "board",     href: "/board",     label: "Mitteilungen",  icon: "speakerphone" },
   { id: "notes",     href: "/notes",     label: "Notizen",       icon: "sticky-note" },
   { id: "messenger", href: "/messenger", label: "Chat",          icon: "message-circle" },

@@ -6,6 +6,7 @@ export * from "./webClient.js";
 export * from "./proxyFetch.js";
 export * from "./client.js";
 export * from "./sessionCache.js";
+export * from "./davinci.js";
 
 export * from "./api/mail.js";
 export * from "./api/tasks.js";

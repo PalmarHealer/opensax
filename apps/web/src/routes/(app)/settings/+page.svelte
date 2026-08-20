@@ -6,6 +6,7 @@
   import ConnectionsList from "$lib/ConnectionsList.svelte";
   import ConnectionsMcpUrl from "$lib/ConnectionsMcpUrl.svelte";
   import { NAV_TABS, loadNavConfig, saveNavConfig, tabById, type NavConfig, type NavMode } from "$lib/nav";
+  import { media } from "$lib/mediaQuery.svelte";
 
   let { data, form } = $props();
   const p = $derived(data.profile);
@@ -107,8 +108,18 @@
     }
   }
 
-  type Tab = "profile" | "mail" | "connections" | "navigation" | "account";
-  const TABS: ReadonlySet<Tab> = new Set(["profile", "mail", "connections", "navigation", "account"]);
+  type Tab = "profile" | "mail" | "stundenplan" | "connections" | "navigation" | "account";
+  // Single source for both the mobile strip and the desktop rail — they drifted
+  // apart when they were two literals.
+  const TAB_ITEMS: ReadonlyArray<[Tab, string, string]> = [
+    ["profile", "Profil", "settings"],
+    ["mail", "Mail", "mail"],
+    ["stundenplan", "Stundenplan", "table"],
+    ["connections", "Verbindungen", "send"],
+    ["navigation", "Navigation", "list-check"],
+    ["account", "Account", "logout"],
+  ];
+  const TABS: ReadonlySet<Tab> = new Set(TAB_ITEMS.map(([id]) => id));
   const tab = $derived.by<Tab>(() => {
     const t = page.url.searchParams.get("tab");
     return TABS.has(t as Tab) ? (t as Tab) : "profile";
@@ -223,11 +234,36 @@
   }
 </script>
 
+{#if media.mobile}
+<div class="flex h-full flex-col">
+  <!-- Tab strip -->
+  <div class="shrink-0 border-b border-zinc-800 bg-zinc-900/30">
+    <h1 class="px-4 pt-3 text-base font-semibold tracking-tight">Einstellungen</h1>
+    <div class="flex gap-1 overflow-x-auto px-2 pb-2 pt-2">
+      {#each TAB_ITEMS as [k, label, icon]}
+        <button
+          class="flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition
+            {tab === k ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'}"
+          onclick={() => setTab(k as Tab)}
+        >
+          <Icon name={icon} size={16} />
+          {label}
+        </button>
+      {/each}
+    </div>
+  </div>
+
+  <!-- Tab body -->
+  <section class="flex-1 overflow-auto">
+    {@render tabBody()}
+  </section>
+</div>
+{:else}
 <div class="grid h-full" style="grid-template-columns: 240px 1fr">
   <!-- Tab rail -->
   <aside class="flex h-full flex-col border-r border-zinc-800 bg-zinc-900/30 p-3">
     <h1 class="mb-3 px-2 text-base font-semibold tracking-tight">Einstellungen</h1>
-    {#each [["profile", "Profil", "settings"], ["mail", "Mail", "mail"], ["connections", "Verbindungen", "send"], ["navigation", "Navigation", "list-check"], ["account", "Account", "logout"]] as [k, label, icon]}
+    {#each TAB_ITEMS as [k, label, icon]}
       <button
         class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition
           {tab === k ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'}"
@@ -241,13 +277,19 @@
 
   <!-- Tab body -->
   <section class="overflow-auto">
+    {@render tabBody()}
+  </section>
+</div>
+{/if}
+
+{#snippet tabBody()}
     <div class="mx-auto max-w-2xl px-8 py-8">
       {#if tab === "profile"}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Profil</h2>
         <form method="POST" action="?/saveProfile" use:enhance class="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Name</legend>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Vorname</span>
                 <input name="firstname" value={p.firstname ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -256,7 +298,7 @@
                 <span class="mb-1 block text-xs text-zinc-400">Nachname</span>
                 <input name="lastname" value={p.lastname ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block col-span-2">
+              <label class="block md:col-span-2">
                 <span class="mb-1 block text-xs text-zinc-400">Titel</span>
                 <input name="title" value={p.title ?? ""} placeholder="Dr., Prof. …" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
@@ -265,7 +307,7 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Kontakt</legend>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Telefon</span>
                 <input name="phone" value={p.phone ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -287,8 +329,8 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Adresse</legend>
-            <div class="grid grid-cols-3 gap-3">
-              <label class="block col-span-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label class="block sm:col-span-3">
                 <span class="mb-1 block text-xs text-zinc-400">Straße</span>
                 <input name="street" value={p.street ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
@@ -296,11 +338,11 @@
                 <span class="mb-1 block text-xs text-zinc-400">PLZ</span>
                 <input name="zip" value={p.zip ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block col-span-2">
+              <label class="block sm:col-span-2">
                 <span class="mb-1 block text-xs text-zinc-400">Ort</span>
                 <input name="city" value={p.city ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block col-span-3">
+              <label class="block sm:col-span-3">
                 <span class="mb-1 block text-xs text-zinc-400">Land</span>
                 <input name="country" value={p.country ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
@@ -309,7 +351,7 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Arbeit</legend>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Firma / Schule</span>
                 <input name="company" value={p.company ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -331,7 +373,7 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Persönlich</legend>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Geburtstag (TT.MM.JJJJ)</span>
                 <input name="birthday" value={p.birthday ?? ""} placeholder="01.01.2000" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -340,7 +382,7 @@
                 <span class="mb-1 block text-xs text-zinc-400">Skype</span>
                 <input name="skype" value={p.skype ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block col-span-2">
+              <label class="block md:col-span-2">
                 <span class="mb-1 block text-xs text-zinc-400">Notiz</span>
                 <textarea name="comment" rows="3" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500">{p.comment ?? ""}</textarea>
               </label>
@@ -357,7 +399,7 @@
                 <option value="2" selected={p.visible === "2"}>Alle</option>
               </select>
             </label>
-            <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+            <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <label class="flex items-center gap-2"><input type="checkbox" name="show_phone" value="1" checked={p.show_phone === "1"} /> Telefon zeigen</label>
               <label class="flex items-center gap-2"><input type="checkbox" name="show_email" value="1" checked={p.show_email === "1"} /> E-Mail zeigen</label>
               <label class="flex items-center gap-2"><input type="checkbox" name="show_address" value="1" checked={p.show_address === "1"} /> Adresse zeigen</label>
@@ -366,7 +408,8 @@
           </fieldset>
 
           {#if form?.ok && form?.scope === "profile"}<p class="text-xs text-emerald-400">Gespeichert.</p>{/if}
-          {#if form?.error}<p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>{/if}
+          <!-- Scoped: an unscoped check showed other tabs' failures down here. -->
+          {#if form?.error && form?.scope === "profile"}<p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>{/if}
 
           <div class="flex justify-end pt-2">
             <button class="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400">Speichern</button>
@@ -378,7 +421,7 @@
           <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-400">Signatur</h3>
           <p class="text-xs text-zinc-500">Wird automatisch beim Antworten und Weiterleiten angefügt.</p>
           <textarea name="text" rows="8" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-indigo-500" placeholder="-- &#10;Vorname Nachname&#10;…">{data.signature.text}</textarea>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label class="block">
               <span class="mb-1 block text-xs text-zinc-400">Position bei Antworten</span>
               <select name="position_answer" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500">
@@ -404,6 +447,128 @@
           <h3 class="mb-1 text-sm font-semibold text-zinc-300">Filterregeln</h3>
           <p>Diese API ist auf dem LernSax-Server nicht öffentlich erreichbar. Sobald sie verfügbar ist, kommt das Modul automatisch hier rein.</p>
         </div>
+      {:else if tab === "stundenplan"}
+        <h2 class="mb-1 text-xl font-semibold tracking-tight">Stundenplan</h2>
+        <p class="mb-4 text-sm text-zinc-400">
+          OpenSax holt Plan und Vertretungen direkt vom DaVinci-Server deiner Schule.
+          Endpoint und Zugangsdaten bekommst du von der Schule — sie sind dieselben wie in der DaVinci-App.
+        </p>
+
+        <!-- `tab` rides along in the action URL so a submit that isn't enhanced
+             (no JS yet, stale tab) still comes back to this tab instead of
+             dumping the user on Profil with an orphaned error. -->
+        <form method="POST" action="?/saveDavinci&tab=stundenplan" use:enhance class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+          <label class="block">
+            <span class="mb-1 block text-xs text-zinc-400">Endpoint</span>
+            <input
+              name="endpoint"
+              value={data.davinci?.endpoint ?? ""}
+              placeholder="schule.example.de  oder  http://host/daVinciIS.dll"
+              class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-500"
+            />
+            <span class="mt-1 block text-[11px] text-zinc-500">
+              Host genügt — <code>/daVinciIS.dll</code> wird ergänzt. Ohne Schema wird erst HTTPS,
+              dann HTTP probiert; die meisten Schulserver sprechen nur HTTP.
+            </span>
+          </label>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="block">
+              <span class="mb-1 block text-xs text-zinc-400">Benutzername</span>
+              <input
+                name="username"
+                value={data.davinci?.username ?? ""}
+                class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-500"
+              />
+              <span class="mt-1 block text-[11px] text-zinc-500">
+                Exakt wie angegeben — Leerzeichen am Ende zählen mit.
+              </span>
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs text-zinc-400">Passwort</span>
+              <input
+                name="password"
+                type="password"
+                autocomplete="off"
+                placeholder={data.davinci?.hasPassword ? "••••••••" : ""}
+                class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-500"
+              />
+              <span class="mt-1 block text-[11px] text-zinc-500">
+                {data.davinci?.hasPassword ? "Leer lassen, um das gespeicherte zu behalten." : "Wird verschlüsselt gespeichert."}
+              </span>
+            </label>
+          </div>
+
+          <fieldset class="border-t border-zinc-800 pt-4">
+            <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Ansicht</legend>
+            <p class="mb-3 text-[11px] text-zinc-500">
+              Leer lassen, wenn dein Zugang schon einer Klasse oder Lehrkraft zugeordnet ist — dann erkennt
+              OpenSax das automatisch.
+            </p>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label class="block">
+                <span class="mb-1 block text-xs text-zinc-400">Klasse</span>
+                <input
+                  name="classCode"
+                  value={data.davinci?.classCode ?? ""}
+                  placeholder="z.B. IT 25/3"
+                  class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs text-zinc-400">Lehrer-Kürzel</span>
+                <input
+                  name="teacherCode"
+                  value={data.davinci?.teacherCode ?? ""}
+                  placeholder="z.B. Loh"
+                  class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                />
+              </label>
+            </div>
+            <label class="mt-3 flex items-center gap-2 text-sm text-zinc-300">
+              <input
+                type="checkbox"
+                name="includeSupervisions"
+                value="1"
+                checked={data.davinci?.includeSupervisions ?? false}
+                class="rounded border-zinc-700 bg-zinc-950"
+              />
+              Aufsichten mit anzeigen
+            </label>
+          </fieldset>
+
+          {#if form?.scope === "davinci" && form?.error}
+            <p class="text-xs text-rose-400">{form.error}</p>
+          {/if}
+          {#if form?.ok && form?.scope === "davinci"}
+            <div class="rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3 text-xs text-emerald-300">
+              <p class="font-medium">Verbunden.</p>
+              <p class="mt-1 text-emerald-300/80">
+                {form.info?.scheduleDescription ?? "Stundenplan"} ·
+                {form.info?.lessonCount ?? 0} Unterrichtsserien ·
+                Profil „{form.info?.profile ?? "?"}"
+                {#if form.info?.identity}· als {form.info.identity}{/if}
+              </p>
+            </div>
+          {/if}
+          {#if form?.ok && form?.scope === "davinci-cleared"}
+            <p class="text-xs text-zinc-400">Verbindung entfernt.</p>
+          {/if}
+
+          <div class="flex justify-end gap-2 pt-1">
+            {#if data.davinci}
+              <button
+                formaction="?/clearDavinci&tab=stundenplan"
+                class="rounded-md border border-zinc-800 px-4 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+              >
+                Entfernen
+              </button>
+            {/if}
+            <button class="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400">
+              Testen &amp; speichern
+            </button>
+          </div>
+        </form>
       {:else if tab === "connections"}
         {@const fmtRel = (ts: number) => {
           const d = Math.floor((Date.now() - ts) / 1000);
@@ -432,7 +597,7 @@
 
         <section class="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
           <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Layout</h3>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               onclick={() => setMode("sidenav")}
               class="group flex flex-col items-stretch overflow-hidden rounded-xl border-2 transition
@@ -542,7 +707,7 @@
       {:else}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Account</h2>
         <section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
-          <dl class="grid grid-cols-[120px_1fr] gap-y-2 text-sm">
+          <dl class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-y-2 text-sm">
             <dt class="text-zinc-500">Login</dt><dd>{data.user?.login ?? "—"}</dd>
             <dt class="text-zinc-500">Voller Name</dt><dd>{data.user?.fullname ?? "—"}</dd>
             <dt class="text-zinc-500">Schule</dt><dd>{data.user?.base_user?.name_hr ?? "—"}</dd>
@@ -691,5 +856,4 @@
         </section>
       {/if}
     </div>
-  </section>
-</div>
+{/snippet}
