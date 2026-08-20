@@ -3,10 +3,12 @@
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
   import { media } from "$lib/mediaQuery.svelte";
+  import type { DaVinciEntry } from "@lernsax/core";
 
   let { data } = $props();
 
   const DAY_NAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+  const DAY_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
   function shiftWeek(days: number) {
     const d = new Date(`${data.weekStart}T00:00:00Z`);
@@ -60,63 +62,85 @@
   };
 </script>
 
-<div class="flex h-full flex-col">
-  <!-- Header -->
-  <header class="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800 bg-zinc-900/30 px-4 py-3">
-    <h1 class="mr-2 text-base font-semibold tracking-tight">Stundenplan</h1>
+{#snippet lesson(e: DaVinciEntry)}
+  <div
+    class="h-full min-w-0 overflow-hidden rounded-xl border p-2.5 {e.change
+      ? CHANGE_STYLE[e.change.type]
+      : 'border-zinc-800 bg-zinc-950/40'}"
+  >
+    <div class="flex items-baseline justify-between gap-1">
+      <span
+        class="min-w-0 break-words text-sm font-medium {e.change?.type === 'cancelled'
+          ? 'text-zinc-500 line-through'
+          : 'text-zinc-100'}"
+      >
+        {e.title}
+      </span>
+      <!-- Which class this belongs to only matters when the view isn't already
+           narrowed to one — an unfiltered HTML export lists the whole school. -->
+      {#if !data.filter?.classCode && e.classes.length}
+        <span class="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-400">
+          {e.classes.join(", ")}
+        </span>
+      {/if}
+    </div>
 
-    {#if data.configured}
-      <div class="flex items-center gap-1">
-        <button
-          class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-          onclick={() => shiftWeek(-7)}
-          aria-label="Vorherige Woche"
-        >
-          <Icon name="chevron-left" size={16} />
-        </button>
-        <button
-          class="rounded-md border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
-          onclick={toToday}
-        >
-          Heute
-        </button>
-        <button
-          class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-          onclick={() => shiftWeek(7)}
-          aria-label="Nächste Woche"
-        >
-          <Icon name="chevron-right" size={16} />
-        </button>
-      </div>
-      <span class="text-sm text-zinc-400">{weekLabel}</span>
+    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
+      {#if e.rooms.length}
+        <span class="inline-flex items-center gap-1"><Icon name="map-pin" size={12} />{e.rooms.join(", ")}</span>
+      {/if}
+      {#if e.teachers.length}
+        <span class="inline-flex items-center gap-1"><Icon name="user" size={12} />{e.teachers.join(", ")}</span>
+      {/if}
+      {#if e.change?.absentTeachers.length}
+        <span class="text-zinc-600 line-through">{e.change.absentTeachers.join(", ")}</span>
+      {/if}
+    </div>
 
-      <div class="ml-auto flex items-center gap-2">
-        {#if data.filter?.classCode}
-          <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Klasse {data.filter.classCode}</span>
+    {#if e.change}
+      <div class="mt-1.5 flex flex-wrap items-center gap-2">
+        <span class="rounded px-1.5 py-0.5 text-[11px] font-medium {BADGE_STYLE[e.change.type]}">
+          {e.change.caption}
+        </span>
+        {#if e.change.reason}
+          <span class="text-[11px] text-zinc-500">{e.change.reason}</span>
         {/if}
-        {#if data.filter?.teacherCode}
-          <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">{data.filter.teacherCode}</span>
-        {/if}
-        <button
-          class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-          onclick={refresh}
-          aria-label="Neu laden"
-        >
-          <Icon name="refresh" size={16} />
-        </button>
-        <a
-          href="/settings?tab=stundenplan"
-          class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-          aria-label="Einstellungen"
-        >
-          <Icon name="settings" size={16} />
-        </a>
       </div>
+      {#if e.change.information || e.change.message}
+        <p class="mt-1 text-[11px] leading-snug text-zinc-400">{e.change.information || e.change.message}</p>
+      {/if}
     {/if}
-  </header>
+  </div>
+{/snippet}
 
+{#snippet controls()}
+  <div class="flex items-center gap-1">
+    <button
+      class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+      onclick={() => shiftWeek(-7)}
+      aria-label="Vorherige Woche"
+    >
+      <Icon name="chevron-left" size={16} />
+    </button>
+    <button
+      class="flex-1 rounded-md border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
+      onclick={toToday}
+    >
+      Heute
+    </button>
+    <button
+      class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+      onclick={() => shiftWeek(7)}
+      aria-label="Nächste Woche"
+    >
+      <Icon name="chevron-right" size={16} />
+    </button>
+  </div>
+{/snippet}
+
+{#snippet body()}
   {#if !data.configured}
-    <div class="flex flex-1 items-center justify-center p-8">
+    <div class="flex h-full items-center justify-center p-8">
       <div class="max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 text-center">
         <h2 class="mb-2 text-lg font-semibold">Noch kein Stundenplan verbunden</h2>
         <p class="mb-4 text-sm text-zinc-400">
@@ -133,101 +157,109 @@
       </div>
     </div>
   {:else if data.error}
-    <div class="flex flex-1 items-center justify-center p-8">
+    <div class="flex h-full items-center justify-center p-8">
       <div class="max-w-md rounded-2xl border border-rose-900/60 bg-rose-950/20 p-6 text-center">
         <h2 class="mb-2 text-lg font-semibold text-rose-200">Abruf fehlgeschlagen</h2>
         <p class="mb-4 text-sm text-rose-300/80">{data.error}</p>
         <a href="/settings?tab=stundenplan" class="text-sm text-rose-200 underline">Einstellungen prüfen</a>
       </div>
     </div>
-  {:else}
-    <div class="flex-1 overflow-auto p-4">
-      <div class="grid gap-3 {media.mobile ? '' : 'md:grid-cols-5'}">
-        {#each data.days as day, i (day.date)}
-          {@const isToday = day.date === data.today}
-          <section
-            class="rounded-2xl border bg-zinc-900/40 p-3 {isToday
-              ? 'border-indigo-500/60'
-              : 'border-zinc-800'}"
-          >
-            <header class="mb-2 flex items-baseline justify-between">
-              <h2 class="text-sm font-semibold {isToday ? 'text-indigo-300' : 'text-zinc-200'}">
-                {DAY_NAMES[i]}
-              </h2>
-              <span class="text-xs text-zinc-500">{fmtDay(day.date)}</span>
-            </header>
-
-            {#if day.slots.length === 0}
-              <p class="py-4 text-center text-xs text-zinc-600">frei</p>
-            {:else}
-              <ul class="space-y-3">
-                {#each day.slots as slot (slot.start + slot.end)}
+  {:else if data.blocks.length === 0}
+    <div class="flex h-full items-center justify-center p-8">
+      <p class="text-sm text-zinc-500">Keine Stunden in dieser Woche.</p>
+    </div>
+  {:else if media.mobile}
+    <!-- Column-per-day makes no sense on a phone; go back to a day list. -->
+    <div class="h-full overflow-auto p-4">
+      {#each data.days as day, i (day.date)}
+        <section class="mb-4 rounded-2xl border bg-zinc-900/40 p-3 {day.date === data.today ? 'border-indigo-500/60' : 'border-zinc-800'}">
+          <header class="mb-2 flex items-baseline justify-between">
+            <h2 class="text-sm font-semibold {day.date === data.today ? 'text-indigo-300' : 'text-zinc-200'}">
+              {DAY_NAMES[i]}
+            </h2>
+            <span class="text-xs text-zinc-500">{fmtDay(day.date)}</span>
+          </header>
+          {#if day.cells.every((c) => c === null)}
+            <p class="py-4 text-center text-xs text-zinc-600">frei</p>
+          {:else}
+            <ul class="space-y-3">
+              {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
+                {@const cell = day.cells[bi]}
+                {#if cell}
                   <li>
-                    <!-- Block header: printed once, so parallel lessons below
-                         don't repeat the same time three times over. -->
                     <div class="mb-1 flex items-baseline gap-2 px-0.5 whitespace-nowrap">
-                      {#if slot.period}
-                        <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">
-                          {slot.period}
-                        </span>
+                      {#if block.period}
+                        <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">{block.period}</span>
                       {/if}
-                      <span class="text-[11px] text-zinc-500">{slot.start}–{slot.end}</span>
+                      {#if block.start}
+                        <span class="text-[11px] text-zinc-500">{block.start}–{block.end}</span>
+                      {/if}
                     </div>
-
-                    <div class="grid gap-2 {slot.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
-                      {#each slot.entries as e (e.key)}
-                        <div
-                          class="rounded-xl border p-2.5 {e.change
-                            ? CHANGE_STYLE[e.change.type]
-                            : 'border-zinc-800 bg-zinc-950/40'}"
-                        >
-                          <div
-                            class="text-sm font-medium {e.change?.type === 'cancelled'
-                              ? 'text-zinc-500 line-through'
-                              : 'text-zinc-100'}"
-                          >
-                            {e.title}
-                          </div>
-
-                          <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
-                            {#if e.rooms.length}
-                              <span class="inline-flex items-center gap-1">
-                                <Icon name="map-pin" size={12} />{e.rooms.join(", ")}
-                              </span>
-                            {/if}
-                            {#if e.teachers.length}
-                              <span class="inline-flex items-center gap-1">
-                                <Icon name="user" size={12} />{e.teachers.join(", ")}
-                              </span>
-                            {/if}
-                            {#if e.change?.absentTeachers.length}
-                              <span class="text-zinc-600 line-through">{e.change.absentTeachers.join(", ")}</span>
-                            {/if}
-                          </div>
-
-                          {#if e.change}
-                            <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                              <span class="rounded px-1.5 py-0.5 text-[11px] font-medium {BADGE_STYLE[e.change.type]}">
-                                {e.change.caption}
-                              </span>
-                              {#if e.change.reason}
-                                <span class="text-[11px] text-zinc-500">{e.change.reason}</span>
-                              {/if}
-                            </div>
-                            {#if e.change.information || e.change.message}
-                              <p class="mt-1 text-[11px] leading-snug text-zinc-400">
-                                {e.change.information || e.change.message}
-                              </p>
-                            {/if}
-                          {/if}
-                        </div>
-                      {/each}
+                    <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
+                      {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
                     </div>
                   </li>
-                {/each}
-              </ul>
+                {/if}
+              {/each}
+            </ul>
+          {/if}
+        </section>
+      {/each}
+    </div>
+  {:else}
+    <!-- One row per time block, one column per day: the same period sits at the
+         same height everywhere, so the week reads across as well as down. -->
+    <div class="h-full overflow-auto p-4">
+      <div
+        class="grid min-w-[46rem] gap-2"
+        style="grid-template-columns: 4.5rem repeat({data.days.length}, minmax(0, 1fr))"
+      >
+        <!-- Header row -->
+        <div></div>
+        {#each data.days as day, i (day.date)}
+          {@const isToday = day.date === data.today}
+          <div
+            class="rounded-lg border px-3 py-2 {isToday
+              ? 'border-indigo-500/60 bg-indigo-500/5'
+              : 'border-zinc-800 bg-zinc-900/40'}"
+          >
+            <div class="flex items-baseline justify-between gap-1">
+              <span class="truncate text-sm font-semibold {isToday ? 'text-indigo-300' : 'text-zinc-200'}">
+                {media.desktop ? DAY_NAMES[i] : DAY_SHORT[i]}
+              </span>
+              <span class="shrink-0 text-xs text-zinc-500">{fmtDay(day.date)}</span>
+            </div>
+            {#if day.note}
+              <p class="mt-1 truncate text-[10px] text-zinc-500" title={day.note}>{day.note}</p>
             {/if}
-          </section>
+          </div>
+        {/each}
+
+        <!-- One row per block -->
+        {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
+          <div class="flex flex-col items-end justify-start pt-2 pr-1 text-right whitespace-nowrap">
+            {#if block.period}
+              <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">
+                {block.period}
+              </span>
+            {/if}
+            <!-- HTML exports publish period numbers only; there are no times. -->
+            {#if block.start}
+              <span class="mt-1 text-[10px] leading-tight text-zinc-500">{block.start}</span>
+              <span class="text-[10px] leading-tight text-zinc-600">{block.end}</span>
+            {/if}
+          </div>
+
+          {#each data.days as day (day.date)}
+            {@const cell = day.cells[bi]}
+            {#if cell}
+              <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
+                {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
+              </div>
+            {:else}
+              <div class="rounded-xl border border-dashed border-zinc-900"></div>
+            {/if}
+          {/each}
         {/each}
       </div>
 
@@ -243,4 +275,88 @@
       {/if}
     </div>
   {/if}
-</div>
+{/snippet}
+
+<!-- Three bands. A page rail costs 240px on top of the app rail, and with a
+     five-day grid next to it nothing fits below ~1300px — so the rail is
+     desktop-only and everything narrower gets the controls as a header. -->
+{#if !media.desktop}
+  <div class="flex h-full flex-col">
+    <header class="shrink-0 border-b border-zinc-800 bg-zinc-900/30 px-4 py-3">
+      <div class="flex items-center gap-2">
+        <h1 class="text-base font-semibold tracking-tight">Stundenplan</h1>
+        <div class="ml-auto flex items-center gap-2">
+          <button
+            class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+            onclick={refresh}
+            aria-label="Neu laden"
+          >
+            <Icon name="refresh" size={16} />
+          </button>
+          <a
+            href="/settings?tab=stundenplan"
+            class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+            aria-label="Einstellungen"
+          >
+            <Icon name="settings" size={16} />
+          </a>
+        </div>
+      </div>
+      {#if data.configured}
+        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div class="w-full max-w-xs">{@render controls()}</div>
+          <span class="text-xs text-zinc-400">{weekLabel}</span>
+          {#if data.filter?.classCode}
+            <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Klasse {data.filter.classCode}</span>
+          {/if}
+          {#if data.filter?.teacherCode}
+            <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">{data.filter.teacherCode}</span>
+          {/if}
+        </div>
+      {/if}
+    </header>
+    <div class="min-h-0 flex-1">{@render body()}</div>
+  </div>
+{:else}
+  <div class="grid h-full" style="grid-template-columns: 240px 1fr">
+    <!-- Page rail, same 240px as Einstellungen/Mail/Chat. -->
+    <aside class="flex h-full flex-col gap-3 border-r border-zinc-800 bg-zinc-900/30 p-3">
+      <h1 class="px-2 text-base font-semibold tracking-tight">Stundenplan</h1>
+
+      {#if data.configured}
+        {@render controls()}
+        <p class="px-2 text-xs text-zinc-400">{weekLabel}</p>
+
+        {#if data.filter?.classCode || data.filter?.teacherCode}
+          <div class="flex flex-wrap gap-1 px-2">
+            {#if data.filter.classCode}
+              <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Klasse {data.filter.classCode}</span>
+            {/if}
+            {#if data.filter.teacherCode}
+              <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">{data.filter.teacherCode}</span>
+            {/if}
+          </div>
+        {/if}
+
+        <div class="mt-auto flex flex-col gap-1">
+          <button
+            class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-200"
+            onclick={refresh}
+          >
+            <Icon name="refresh" size={16} />
+            Neu laden
+          </button>
+          <a
+            href="/settings?tab=stundenplan"
+            class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-200"
+          >
+            <Icon name="settings" size={16} />
+            Einstellungen
+          </a>
+        </div>
+      {/if}
+    </aside>
+
+    <section class="min-h-0 overflow-hidden">{@render body()}</section>
+  </div>
+{/if}

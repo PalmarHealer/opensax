@@ -1,6 +1,6 @@
 import type { PageServerLoad } from "./$types";
 import { getUserIdForSession } from "$lib/server/sessionStore";
-import { getPayload, loadConfig } from "$lib/server/davinciStore";
+import { getHtml, getPayload, loadConfig } from "$lib/server/davinciStore";
 import {
   describeDaVinci,
   expandDaVinciDays,
@@ -26,12 +26,16 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export interface DaySlot {
+/** A time window that occurs somewhere in the displayed week. */
+export interface Block {
   /** "HH:MM". */
   start: string;
   end: string;
   /** Period label of the block, e.g. "3-4". */
   period?: string;
+}
+
+export interface DaySlot {
   /** Everything happening in this window. */
   entries: DaVinciEntry[];
   /**
@@ -47,24 +51,52 @@ export interface DaySlot {
 }
 
 /**
- * Bucket a day's entries by time window, preserving order. Lets the UI print
- * the time once per block and put parallel lessons next to each other instead
- * of stacking them as if they were consecutive.
+ * Identity of the slot an entry occupies.
+ *
+ * The period is part of it, not just the clock times: HTML exports print
+ * period numbers and no times at all, so keying on times alone would collapse
+ * an entire week into a single row.
  */
-function groupIntoSlots(entries: DaVinciEntry[]): DaySlot[] {
-  const slots: DaySlot[] = [];
+const blockKey = (b: { start: string; end: string; period?: string }) =>
+  `${b.start}|${b.end}|${b.period ?? ""}`;
+
+/** Leading number of a period label, so "10" sorts after "9" and not before. */
+function periodOrder(period?: string): number {
+  const n = Number.parseInt(period ?? "", 10);
+  return Number.isNaN(n) ? Number.MAX_SAFE_INTEGER : n;
+}
+
+/**
+ * The distinct time windows used anywhere in the week, in chronological order.
+ *
+ * These become the grid's rows, so the same period lands at the same height in
+ * every day column and the week can be read across. Days that don't use a
+ * window get an empty cell rather than pulling their later lessons upwards.
+ */
+function collectBlocks(entries: DaVinciEntry[]): Block[] {
+  const byKey = new Map<string, Block>();
   for (const e of entries) {
-    const last = slots[slots.length - 1];
-    if (last && last.start === e.start && last.end === e.end) {
-      last.entries.push(e);
-      continue;
-    }
-    slots.push({ start: e.start, end: e.end, period: e.period, entries: [e], parallel: false });
+    const key = blockKey(e);
+    if (!byKey.has(key)) byKey.set(key, { start: e.start, end: e.end, period: e.period });
   }
-  for (const s of slots) {
-    s.parallel = s.entries.filter((e) => e.change?.type !== "cancelled").length > 1;
-  }
-  return slots;
+  // Times first where they exist; period order carries the rest, which is all
+  // an HTML export gives us.
+  return [...byKey.values()].sort((a, b) =>
+    a.start.localeCompare(b.start)
+    || periodOrder(a.period) - periodOrder(b.period)
+    || a.end.localeCompare(b.end));
+}
+
+/** Bucket one day's entries into the shared block grid. `null` = free. */
+function cellsFor(entries: DaVinciEntry[], blocks: Block[]): (DaySlot | null)[] {
+  return blocks.map((b) => {
+    const hit = entries.filter((e) => blockKey(e) === blockKey(b));
+    if (hit.length === 0) return null;
+    return {
+      entries: hit,
+      parallel: hit.filter((e) => e.change?.type !== "cancelled").length > 1,
+    };
+  });
 }
 
 function todayIso(): string {
@@ -87,30 +119,73 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     return { configured: false as const, weekStart, weekEnd, today };
   }
 
+  const force = url.searchParams.has("refresh");
+
   try {
-    const { payload, fetchedAt, cached } = await getPayload(user_id, cfg, {
-      force: url.searchParams.has("refresh"),
-    });
+    let entries: DaVinciEntry[];
+    let classCode = cfg.classCode;
+    let teacherCode = cfg.teacherCode;
+    let auto: ReturnType<typeof personalFilter> = null;
+    let info: ReturnType<typeof describeDaVinci> | null = null;
+    let fetchedAt: number;
+    let cached: boolean;
+    let notes: Record<string, string> = {};
+    let dayCount = 5;
 
-    // An explicit pick in Settings wins; otherwise fall back to whatever object
-    // the server tied our login to.
-    const auto = personalFilter(payload);
-    const classCode = cfg.classCode || (auto?.type === "class" ? auto.code : undefined);
-    const teacherCode = cfg.teacherCode || (auto?.type === "teacher" ? auto.code : undefined);
+    if (cfg.sourceType === "html") {
+      // A published export carries only what deviates from the timetable, and
+      // no login — so there is nobody for the server to identify us as. The
+      // class has to come from Settings.
+      const res = await getHtml(user_id, cfg, { force });
+      fetchedAt = res.fetchedAt;
+      cached = res.cached;
+      notes = res.notes;
+      entries = res.entries.filter(
+        (e) => e.date >= weekStart && e.date <= weekEnd
+          && (!classCode || e.classes.includes(classCode))
+          && (!teacherCode || e.teachers.includes(teacherCode)
+            || (e.change?.absentTeachers ?? []).includes(teacherCode)),
+      );
+      info = {
+        scheduleDescription: "Vertretungsplan (HTML-Export)",
+        serverVersion: res.generatedAt ? `Export ${res.generatedAt}` : undefined,
+        profile: "html",
+        lessonCount: entries.length,
+        classCount: new Set(res.entries.flatMap((e) => e.classes)).size,
+        teacherCount: new Set(res.entries.flatMap((e) => e.teachers)).size,
+      };
+    } else {
+      const res = await getPayload(user_id, cfg, { force });
+      fetchedAt = res.fetchedAt;
+      cached = res.cached;
 
-    const entries: DaVinciEntry[] = expandDaVinciDays(payload, {
-      from: weekStart,
-      to: weekEnd,
-      classCode,
-      teacherCode,
-      includeSupervisions: cfg.includeSupervisions ?? false,
-    });
+      // An explicit pick in Settings wins; otherwise fall back to whatever
+      // object the server tied our login to.
+      auto = personalFilter(res.payload);
+      classCode = cfg.classCode || (auto?.type === "class" ? auto.code : undefined);
+      teacherCode = cfg.teacherCode || (auto?.type === "teacher" ? auto.code : undefined);
 
-    const span = payload.result?.displaySchedule?.weekspan;
-    const dayCount = Math.min(7, Math.max(5, (span?.weekdayEnd ?? 5) - (span?.weekdayStart ?? 1) + 1));
+      entries = expandDaVinciDays(res.payload, {
+        from: weekStart,
+        to: weekEnd,
+        classCode,
+        teacherCode,
+        includeSupervisions: cfg.includeSupervisions ?? false,
+      });
+
+      info = describeDaVinci(res.payload);
+      const span = res.payload.result?.displaySchedule?.weekspan;
+      dayCount = Math.min(7, Math.max(5, (span?.weekdayEnd ?? 5) - (span?.weekdayStart ?? 1) + 1));
+    }
+
+    const blocks = collectBlocks(entries);
     const days = Array.from({ length: dayCount }, (_, i) => {
       const date = addDays(weekStart, i);
-      return { date, slots: groupIntoSlots(entries.filter((e) => e.date === date)) };
+      return {
+        date,
+        cells: cellsFor(entries.filter((e) => e.date === date), blocks),
+        note: notes[date],
+      };
     });
 
     return {
@@ -119,8 +194,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       weekEnd,
       today,
       days,
+      blocks,
+      sourceType: cfg.sourceType ?? "infoserver",
       filter: { classCode, teacherCode, auto: auto?.type ?? null },
-      info: describeDaVinci(payload),
+      info,
       fetchedAt,
       cached,
       error: null as string | null,
@@ -131,7 +208,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       weekStart,
       weekEnd,
       today,
-      days: [],
+      days: [] as { date: string; cells: (DaySlot | null)[]; note?: string }[],
+      blocks: [] as Block[],
+      sourceType: cfg.sourceType ?? "infoserver",
       filter: { classCode: cfg.classCode, teacherCode: cfg.teacherCode, auto: null },
       info: null,
       fetchedAt: 0,
