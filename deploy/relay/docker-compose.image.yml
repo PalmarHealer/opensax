@@ -1,0 +1,28 @@
+# Same relay, but from a prebuilt image instead of building on the node.
+#
+# Use this when the target can't build: Portainer's agent proxies the BuildKit
+# gRPC session over HTTP and mangles it, so a remote `compose build` fails with
+# "listing workers for Build". Build the image somewhere that can, ship it over,
+# then deploy this file:
+#
+#   docker build -t opensax-relay:latest deploy/relay
+#   docker save opensax-relay:latest | ssh <node> docker load
+#
+# Everything else — the tinyproxy policy, the domain filter, the Listen/Allow
+# rendering — lives in the image and is identical to docker-compose.yml.
+# See README.md for RELAY_LISTEN / RELAY_ALLOW / RELAY_NETWORK_MODE.
+services:
+  lernsax-relay:
+    image: ${RELAY_IMAGE:-opensax-relay:latest}
+    container_name: lernsax-relay
+    restart: unless-stopped
+    network_mode: ${RELAY_NETWORK_MODE:-host}
+    environment:
+      RELAY_LISTEN: ${RELAY_LISTEN:?set to this node's Tailscale IP}
+      RELAY_ALLOW: ${RELAY_ALLOW:-}
+    healthcheck:
+      test: ["CMD", "nc", "-z", "-w", "2", "${RELAY_LISTEN}", "8888"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
