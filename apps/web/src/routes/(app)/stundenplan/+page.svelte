@@ -157,63 +157,72 @@
               <span class="text-xs text-zinc-500">{fmtDay(day.date)}</span>
             </header>
 
-            {#if day.entries.length === 0}
+            {#if day.slots.length === 0}
               <p class="py-4 text-center text-xs text-zinc-600">frei</p>
             {:else}
-              <ul class="space-y-2">
-                {#each day.entries as e (e.key)}
-                  <li
-                    class="rounded-xl border p-2.5 {e.change
-                      ? CHANGE_STYLE[e.change.type]
-                      : 'border-zinc-800 bg-zinc-950/40'}"
-                  >
-                    <div class="flex items-baseline gap-2">
-                      {#if e.period}
-                        <span class="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-400">
-                          {e.period}
+              <ul class="space-y-3">
+                {#each day.slots as slot (slot.start + slot.end)}
+                  <li>
+                    <!-- Block header: printed once, so parallel lessons below
+                         don't repeat the same time three times over. -->
+                    <div class="mb-1 flex items-baseline gap-2 px-0.5 whitespace-nowrap">
+                      {#if slot.period}
+                        <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">
+                          {slot.period}
                         </span>
                       {/if}
-                      <span
-                        class="text-sm font-medium {e.change?.type === 'cancelled'
-                          ? 'text-zinc-500 line-through'
-                          : 'text-zinc-100'}"
-                      >
-                        {e.title}
-                      </span>
-                      <span class="ml-auto shrink-0 text-[11px] text-zinc-500">{e.start}–{e.end}</span>
+                      <span class="text-[11px] text-zinc-500">{slot.start}–{slot.end}</span>
                     </div>
 
-                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
-                      {#if e.rooms.length}
-                        <span class="inline-flex items-center gap-1">
-                          <Icon name="map-pin" size={12} />{e.rooms.join(", ")}
-                        </span>
-                      {/if}
-                      {#if e.teachers.length}
-                        <span class="inline-flex items-center gap-1">
-                          <Icon name="user" size={12} />{e.teachers.join(", ")}
-                        </span>
-                      {/if}
-                      {#if e.change?.absentTeachers.length}
-                        <span class="text-zinc-600 line-through">{e.change.absentTeachers.join(", ")}</span>
-                      {/if}
-                    </div>
+                    <div class="grid gap-2 {slot.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
+                      {#each slot.entries as e (e.key)}
+                        <div
+                          class="rounded-xl border p-2.5 {e.change
+                            ? CHANGE_STYLE[e.change.type]
+                            : 'border-zinc-800 bg-zinc-950/40'}"
+                        >
+                          <div
+                            class="text-sm font-medium {e.change?.type === 'cancelled'
+                              ? 'text-zinc-500 line-through'
+                              : 'text-zinc-100'}"
+                          >
+                            {e.title}
+                          </div>
 
-                    {#if e.change}
-                      <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                        <span class="rounded px-1.5 py-0.5 text-[11px] font-medium {BADGE_STYLE[e.change.type]}">
-                          {e.change.caption}
-                        </span>
-                        {#if e.change.reason}
-                          <span class="text-[11px] text-zinc-500">{e.change.reason}</span>
-                        {/if}
-                      </div>
-                      {#if e.change.information || e.change.message}
-                        <p class="mt-1 text-[11px] leading-snug text-zinc-400">
-                          {e.change.information || e.change.message}
-                        </p>
-                      {/if}
-                    {/if}
+                          <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
+                            {#if e.rooms.length}
+                              <span class="inline-flex items-center gap-1">
+                                <Icon name="map-pin" size={12} />{e.rooms.join(", ")}
+                              </span>
+                            {/if}
+                            {#if e.teachers.length}
+                              <span class="inline-flex items-center gap-1">
+                                <Icon name="user" size={12} />{e.teachers.join(", ")}
+                              </span>
+                            {/if}
+                            {#if e.change?.absentTeachers.length}
+                              <span class="text-zinc-600 line-through">{e.change.absentTeachers.join(", ")}</span>
+                            {/if}
+                          </div>
+
+                          {#if e.change}
+                            <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                              <span class="rounded px-1.5 py-0.5 text-[11px] font-medium {BADGE_STYLE[e.change.type]}">
+                                {e.change.caption}
+                              </span>
+                              {#if e.change.reason}
+                                <span class="text-[11px] text-zinc-500">{e.change.reason}</span>
+                              {/if}
+                            </div>
+                            {#if e.change.information || e.change.message}
+                              <p class="mt-1 text-[11px] leading-snug text-zinc-400">
+                                {e.change.information || e.change.message}
+                              </p>
+                            {/if}
+                          {/if}
+                        </div>
+                      {/each}
+                    </div>
                   </li>
                 {/each}
               </ul>

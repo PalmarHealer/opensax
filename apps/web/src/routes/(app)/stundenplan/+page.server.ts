@@ -26,6 +26,47 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+export interface DaySlot {
+  /** "HH:MM". */
+  start: string;
+  end: string;
+  /** Period label of the block, e.g. "3-4". */
+  period?: string;
+  /** Everything happening in this window. */
+  entries: DaVinciEntry[];
+  /**
+   * True when the class is genuinely split into groups taught at the same
+   * time — those belong side by side.
+   *
+   * Not every crowded slot qualifies: a lesson moving out and its replacement
+   * moving in also share the window, but they're a sequence, not a pair, so
+   * they stay stacked. Counting entries that still take place separates the
+   * two without another round-trip to the vendor's block ids.
+   */
+  parallel: boolean;
+}
+
+/**
+ * Bucket a day's entries by time window, preserving order. Lets the UI print
+ * the time once per block and put parallel lessons next to each other instead
+ * of stacking them as if they were consecutive.
+ */
+function groupIntoSlots(entries: DaVinciEntry[]): DaySlot[] {
+  const slots: DaySlot[] = [];
+  for (const e of entries) {
+    const last = slots[slots.length - 1];
+    if (last && last.start === e.start && last.end === e.end) {
+      last.entries.push(e);
+      continue;
+    }
+    slots.push({ start: e.start, end: e.end, period: e.period, entries: [e], parallel: false });
+  }
+  for (const s of slots) {
+    s.parallel = s.entries.filter((e) => e.change?.type !== "cancelled").length > 1;
+  }
+  return slots;
+}
+
 function todayIso(): string {
   // The plan is a local-time artefact; using the server's local date keeps
   // "today" aligned with what the user sees on the wall clock.
@@ -69,7 +110,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const dayCount = Math.min(7, Math.max(5, (span?.weekdayEnd ?? 5) - (span?.weekdayStart ?? 1) + 1));
     const days = Array.from({ length: dayCount }, (_, i) => {
       const date = addDays(weekStart, i);
-      return { date, entries: entries.filter((e) => e.date === date) };
+      return { date, slots: groupIntoSlots(entries.filter((e) => e.date === date)) };
     });
 
     return {

@@ -531,7 +531,7 @@ export interface DaVinciEntry {
   /** "HH:MM". */
   start: string;
   end: string;
-  /** Period label from the timeframe whose slot matches, when there is one. */
+  /** Period label, a range for double periods ("1-2"), when resolvable. */
   period?: string;
   /** Subject code, or the supervision/event title. */
   title: string;
@@ -664,14 +664,20 @@ function buildChange(c: DaVinciChanges): DaVinciEntryChange {
 }
 
 /**
- * Apply a change to a code list the way the vendor client does: drop whatever
- * is marked absent, then append the replacements (without duplicating).
+ * Apply a change to a code list: drop whatever is marked absent, then add the
+ * replacements.
+ *
+ * The replacement wins over the absence. A moved lesson routinely names the
+ * same room in both lists — `absentRoomCodes: ["N 222","N 221"]` releases the
+ * bookings of *both* slots involved, while `newRoomCodes: ["N 222"]` states
+ * where it actually takes place. Filtering the additions against the absences
+ * would leave the lesson with no room at all.
  */
 function effectiveCodes(base: string[] | undefined, absent?: string[], added?: string[]): string[] {
   const gone = new Set(absent ?? []);
   const out = (base ?? []).filter((c) => !gone.has(c));
   for (const c of added ?? []) {
-    if (!gone.has(c) && !out.includes(c)) out.push(c);
+    if (!out.includes(c)) out.push(c);
   }
   return out;
 }
@@ -726,7 +732,7 @@ export function expandDaVinciDays(payload: DaVinciPayload, opts: ExpandOptions =
       date: toIsoDate(date),
       start: toIsoTime(startTime),
       end: toIsoTime(endTime),
-      period: periodOf(startTime),
+      period: periodOf(startTime, endTime),
       title,
       subjectName: subject?.description,
       subjectColor: subject?.color,
@@ -803,24 +809,38 @@ function matches(
 }
 
 /**
- * Map a start time back to its period label. Schools run several timeframes
- * (lessons, supervisions, …); the first exact match wins, otherwise we take the
- * slot the time falls inside.
+ * Map a lesson's time span to its period label.
+ *
+ * Lessons are usually taught in double periods — 08:00–09:30 covers slots 1
+ * *and* 2 — so a lookup on the start time alone would label that block "1"
+ * and lose half of it. We collect every slot the span overlaps and render the
+ * range the way the school writes it in its own captions ("1-2").
+ *
+ * Schools define several parallel timeframes (lessons, supervisions,
+ * make-up exams) whose slots overlap in wall-clock time. The frame that
+ * covers the span with the most slots wins, which picks "Standard" 7-8 over a
+ * "Nachschreiber" frame that models the same 13:40–15:10 as a single slot.
  */
-function buildPeriodLookup(timeframes: DaVinciTimeframe[]): (hhmm: string) => string | undefined {
-  const exact = new Map<string, string>();
-  const spans: { start: string; end: string; label: string }[] = [];
-  for (const tf of timeframes) {
-    for (const slot of tf.timeslots ?? []) {
-      if (!slot.label) continue;
-      if (!exact.has(slot.startTime)) exact.set(slot.startTime, slot.label);
-      spans.push({ start: slot.startTime, end: slot.endTime, label: slot.label });
+function buildPeriodLookup(
+  timeframes: DaVinciTimeframe[],
+): (startTime: string, endTime: string) => string | undefined {
+  const frames = timeframes
+    .map((tf) => (tf.timeslots ?? []).filter((s) => s.label))
+    .filter((slots) => slots.length > 0);
+
+  return (startTime, endTime) => {
+    let best: string[] = [];
+    for (const slots of frames) {
+      // Half-open overlap: a slot ending exactly when the lesson starts is
+      // the previous period, not part of this block.
+      const hit = slots
+        .filter((s) => s.startTime < endTime && s.endTime > startTime)
+        .map((s) => s.label as string);
+      if (hit.length > best.length) best = hit;
     }
-  }
-  return (hhmm) => {
-    const e = exact.get(hhmm);
-    if (e) return e;
-    return spans.find((s) => hhmm >= s.start && hhmm < s.end)?.label;
+    if (best.length === 0) return undefined;
+    if (best.length === 1) return best[0];
+    return `${best[0]}-${best[best.length - 1]}`;
   };
 }
 
