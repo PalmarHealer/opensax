@@ -5,7 +5,6 @@
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
   import { sanitizeHtml } from "$lib/linkify";
-  import { media } from "$lib/mediaQuery.svelte";
 
   let { data } = $props();
   const groupValue = $derived(data.group ?? "");
@@ -27,31 +26,31 @@
   }
 </script>
 
-{#if media.mobile}
-<div class="flex h-full flex-col">
-  {#if data.current}
-    <div class="flex shrink-0 items-center gap-2 border-b border-zinc-800 bg-zinc-900/30 px-2 py-2">
-      <button
-        onclick={() => selectPage(null)}
-        class="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
-      >
-        <Icon name="chevron-left" size={16} /> Übersicht
-      </button>
-    </div>
-    <div class="flex-1 overflow-auto">{@render content()}</div>
-  {:else}
-    <div class="flex-1 overflow-auto">{@render sidebar()}</div>
-  {/if}
-</div>
-{:else}
-<div class="grid h-full" style="grid-template-columns: 280px 1fr">
-  {@render sidebar()}
-  {@render content()}
-</div>
-{/if}
+<div class="grid h-full grid-cols-1 md:[grid-template-columns:280px_1fr]">
+  <!-- Page list: collapsible sheet on mobile via <details>, static rail at md+ -->
+  <details class="border-b border-zinc-800 bg-zinc-900/30 md:hidden">
+    <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold">
+      <span>{data.current?.title ?? "Wiki"}</span>
+      <Icon name="chevron-down" size={16} />
+    </summary>
+    <nav class="max-h-64 overflow-auto border-t border-zinc-800 p-2">
+      {#if data.group}
+        <button onclick={() => (creating = true)} class="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100">
+          <Icon name="plus" size={16} /> Neue Seite
+        </button>
+      {/if}
+      {#each data.pages as p}
+        <button
+          class="block w-full truncate rounded-md px-2 py-1.5 text-left text-sm transition {data.pageId === p.id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-900'}"
+          onclick={() => selectPage(p.id)}
+        >{p.title}</button>
+      {:else}
+        <p class="px-2 py-4 text-center text-xs text-zinc-500">Keine Seiten.</p>
+      {/each}
+    </nav>
+  </details>
 
-{#snippet sidebar()}
-  <aside class="flex h-full min-w-0 flex-col border-r border-zinc-800 bg-zinc-900/30">
+  <aside class="hidden h-full min-w-0 flex-col border-r border-zinc-800 bg-zinc-900/30 md:flex">
     <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
       <h2 class="text-sm font-semibold">Wiki</h2>
       {#if data.group}
@@ -69,16 +68,14 @@
       {/each}
     </nav>
   </aside>
-{/snippet}
 
-{#snippet content()}
   <main class="overflow-auto">
     {#if !data.group}
-      <p class="p-8 text-center text-sm text-zinc-500">Keine Gruppe gewählt.</p>
+      <p class="p-4 text-center text-sm text-zinc-500 md:p-8">Keine Gruppe gewählt.</p>
     {:else if !data.current}
-      <p class="p-8 text-center text-sm text-zinc-500">Seite auswählen oder erstellen.</p>
+      <p class="p-4 text-center text-sm text-zinc-500 md:p-8">Seite auswählen oder erstellen.</p>
     {:else}
-      <article class="mx-auto max-w-3xl p-8">
+      <article class="mx-auto max-w-3xl p-4 md:p-8">
         <header class="mb-4 flex items-start justify-between gap-3">
           <h1 class="text-2xl font-semibold">{data.current.title}</h1>
           <div class="flex gap-1">
@@ -96,7 +93,7 @@
       </article>
     {/if}
   </main>
-{/snippet}
+</div>
 
 <Modal open={creating} onclose={() => (creating = false)} title="Neue Wiki-Seite">
   <form method="POST" action="?/create" use:enhance={() => async ({ update }) => { await update(); creating = false; }} class="space-y-3">

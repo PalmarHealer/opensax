@@ -2,7 +2,6 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
-  import { media } from "$lib/mediaQuery.svelte";
   import type { DaVinciEntry } from "@lernsax/core";
 
   let { data } = $props();
@@ -113,6 +112,16 @@
   </div>
 {/snippet}
 
+{#snippet blockLabel(block: { period?: string; start: string; end: string })}
+  {#if block.period}
+    <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">{block.period}</span>
+  {/if}
+  <!-- HTML exports publish period numbers only; there are no times. -->
+  {#if block.start}
+    <span class="text-[11px] text-zinc-500">{block.start}–{block.end}</span>
+  {/if}
+{/snippet}
+
 {#snippet controls()}
   <div class="flex items-center gap-1">
     <button
@@ -144,8 +153,8 @@
       <div class="max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 text-center">
         <h2 class="mb-2 text-lg font-semibold">Noch kein Stundenplan verbunden</h2>
         <p class="mb-4 text-sm text-zinc-400">
-          Trage Endpoint, Benutzername und Passwort deines DaVinci-Servers ein — die Zugangsdaten
-          bekommst du von deiner Schule.
+          Trage den Endpoint deiner Schule ein — je nachdem, was sie veröffentlicht, ein
+          DaVinci-InfoServer oder ein HTML-Vertretungsplan.
         </p>
         <a
           href="/settings?tab=stundenplan"
@@ -168,99 +177,101 @@
     <div class="flex h-full items-center justify-center p-8">
       <p class="text-sm text-zinc-500">Keine Stunden in dieser Woche.</p>
     </div>
-  {:else if media.mobile}
-    <!-- Column-per-day makes no sense on a phone; go back to a day list. -->
-    <div class="h-full overflow-auto p-4">
-      {#each data.days as day, i (day.date)}
-        <section class="mb-4 rounded-2xl border bg-zinc-900/40 p-3 {day.date === data.today ? 'border-indigo-500/60' : 'border-zinc-800'}">
-          <header class="mb-2 flex items-baseline justify-between">
-            <h2 class="text-sm font-semibold {day.date === data.today ? 'text-indigo-300' : 'text-zinc-200'}">
-              {DAY_NAMES[i]}
-            </h2>
-            <span class="text-xs text-zinc-500">{fmtDay(day.date)}</span>
-          </header>
-          {#if day.cells.every((c) => c === null)}
-            <p class="py-4 text-center text-xs text-zinc-600">frei</p>
-          {:else}
-            <ul class="space-y-3">
-              {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
-                {@const cell = day.cells[bi]}
-                {#if cell}
-                  <li>
-                    <div class="mb-1 flex items-baseline gap-2 px-0.5 whitespace-nowrap">
-                      {#if block.period}
-                        <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">{block.period}</span>
-                      {/if}
-                      {#if block.start}
-                        <span class="text-[11px] text-zinc-500">{block.start}–{block.end}</span>
-                      {/if}
-                    </div>
-                    <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
-                      {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
-                    </div>
-                  </li>
-                {/if}
-              {/each}
-            </ul>
-          {/if}
-        </section>
-      {/each}
-    </div>
   {:else}
-    <!-- One row per time block, one column per day: the same period sits at the
-         same height everywhere, so the week reads across as well as down. -->
     <div class="h-full overflow-auto p-4">
-      <div
-        class="grid min-w-[46rem] gap-2"
-        style="grid-template-columns: 4.5rem repeat({data.days.length}, minmax(0, 1fr))"
-      >
-        <!-- Header row -->
-        <div></div>
+      <!-- Below `md` a column-per-day grid is unreadable, so the same data is
+           laid out as a list of days. Both are rendered and toggled in CSS —
+           a JS breakpoint store would have to guess during SSR. -->
+      <div class="md:hidden">
         {#each data.days as day, i (day.date)}
-          {@const isToday = day.date === data.today}
-          <div
-            class="rounded-lg border px-3 py-2 {isToday
-              ? 'border-indigo-500/60 bg-indigo-500/5'
-              : 'border-zinc-800 bg-zinc-900/40'}"
-          >
-            <div class="flex items-baseline justify-between gap-1">
-              <span class="truncate text-sm font-semibold {isToday ? 'text-indigo-300' : 'text-zinc-200'}">
-                {media.desktop ? DAY_NAMES[i] : DAY_SHORT[i]}
-              </span>
-              <span class="shrink-0 text-xs text-zinc-500">{fmtDay(day.date)}</span>
-            </div>
+          <section class="mb-4 rounded-2xl border bg-zinc-900/40 p-3 {day.date === data.today ? 'border-indigo-500/60' : 'border-zinc-800'}">
+            <header class="mb-2 flex items-baseline justify-between">
+              <h2 class="text-sm font-semibold {day.date === data.today ? 'text-indigo-300' : 'text-zinc-200'}">
+                {DAY_NAMES[i]}
+              </h2>
+              <span class="text-xs text-zinc-500">{fmtDay(day.date)}</span>
+            </header>
             {#if day.note}
-              <p class="mt-1 truncate text-[10px] text-zinc-500" title={day.note}>{day.note}</p>
+              <p class="mb-2 text-[11px] text-zinc-500">{day.note}</p>
             {/if}
-          </div>
-        {/each}
-
-        <!-- One row per block -->
-        {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
-          <div class="flex flex-col items-end justify-start pt-2 pr-1 text-right whitespace-nowrap">
-            {#if block.period}
-              <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">
-                {block.period}
-              </span>
-            {/if}
-            <!-- HTML exports publish period numbers only; there are no times. -->
-            {#if block.start}
-              <span class="mt-1 text-[10px] leading-tight text-zinc-500">{block.start}</span>
-              <span class="text-[10px] leading-tight text-zinc-600">{block.end}</span>
-            {/if}
-          </div>
-
-          {#each data.days as day (day.date)}
-            {@const cell = day.cells[bi]}
-            {#if cell}
-              <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
-                {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
-              </div>
+            {#if day.cells.every((c) => c === null)}
+              <p class="py-4 text-center text-xs text-zinc-600">frei</p>
             {:else}
-              <div class="rounded-xl border border-dashed border-zinc-900"></div>
+              <ul class="space-y-3">
+                {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
+                  {@const cell = day.cells[bi]}
+                  {#if cell}
+                    <li>
+                      <div class="mb-1 flex items-baseline gap-2 px-0.5 whitespace-nowrap">
+                        {@render blockLabel(block)}
+                      </div>
+                      <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
+                        {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
+                      </div>
+                    </li>
+                  {/if}
+                {/each}
+              </ul>
             {/if}
-          {/each}
+          </section>
         {/each}
+      </div>
+
+      <!-- One row per time block, one column per day: the same period sits at
+           the same height everywhere, so the week reads across as well as down.
+           Five day columns need room — below ~830px this scrolls sideways
+           inside its own container rather than squeezing the cards. -->
+      <div class="hidden md:block">
+        <div
+          class="grid min-w-[46rem] gap-2"
+          style="grid-template-columns: 4.5rem repeat({data.days.length}, minmax(0, 1fr))"
+        >
+          <div></div>
+          {#each data.days as day, i (day.date)}
+            {@const isToday = day.date === data.today}
+            <div
+              class="rounded-lg border px-3 py-2 {isToday
+                ? 'border-indigo-500/60 bg-indigo-500/5'
+                : 'border-zinc-800 bg-zinc-900/40'}"
+            >
+              <div class="flex items-baseline justify-between gap-1">
+                <span class="truncate text-sm font-semibold {isToday ? 'text-indigo-300' : 'text-zinc-200'}">
+                  <span class="hidden xl:inline">{DAY_NAMES[i]}</span>
+                  <span class="xl:hidden">{DAY_SHORT[i]}</span>
+                </span>
+                <span class="shrink-0 text-xs text-zinc-500">{fmtDay(day.date)}</span>
+              </div>
+              {#if day.note}
+                <p class="mt-1 truncate text-[10px] text-zinc-500" title={day.note}>{day.note}</p>
+              {/if}
+            </div>
+          {/each}
+
+          {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
+            <div class="flex flex-col items-end justify-start pt-2 pr-1 text-right whitespace-nowrap">
+              {#if block.period}
+                <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">
+                  {block.period}
+                </span>
+              {/if}
+              {#if block.start}
+                <span class="mt-1 text-[10px] leading-tight text-zinc-500">{block.start}</span>
+                <span class="text-[10px] leading-tight text-zinc-600">{block.end}</span>
+              {/if}
+            </div>
+
+            {#each data.days as day (day.date)}
+              {@const cell = day.cells[bi]}
+              {#if cell}
+                <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
+                  {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
+                </div>
+              {:else}
+                <div class="rounded-xl border border-dashed border-zinc-900"></div>
+              {/if}
+            {/each}
+          {/each}
+        </div>
       </div>
 
       {#if data.info}
@@ -277,86 +288,80 @@
   {/if}
 {/snippet}
 
-<!-- Three bands. A page rail costs 240px on top of the app rail, and with a
-     five-day grid next to it nothing fits below ~1300px — so the rail is
-     desktop-only and everything narrower gets the controls as a header. -->
-{#if !media.desktop}
-  <div class="flex h-full flex-col">
-    <header class="shrink-0 border-b border-zinc-800 bg-zinc-900/30 px-4 py-3">
-      <div class="flex items-center gap-2">
-        <h1 class="text-base font-semibold tracking-tight">Stundenplan</h1>
-        <div class="ml-auto flex items-center gap-2">
-          <button
-            class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-            onclick={refresh}
-            aria-label="Neu laden"
-          >
-            <Icon name="refresh" size={16} />
-          </button>
-          <a
-            href="/settings?tab=stundenplan"
-            class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-            aria-label="Einstellungen"
-          >
-            <Icon name="settings" size={16} />
-          </a>
-        </div>
-      </div>
-      {#if data.configured}
-        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <div class="w-full max-w-xs">{@render controls()}</div>
-          <span class="text-xs text-zinc-400">{weekLabel}</span>
-          {#if data.filter?.classCode}
+<!-- A page rail costs 240px on top of the app rail, and with a five-day grid
+     next to it nothing fits below ~1300px — so the rail appears at `xl` and
+     everything narrower gets the same controls as a header. -->
+<div class="flex h-full flex-col xl:grid xl:grid-cols-[240px_1fr]">
+  <aside class="hidden h-full flex-col gap-3 border-r border-zinc-800 bg-zinc-900/30 p-3 xl:flex">
+    <h1 class="px-2 text-base font-semibold tracking-tight">Stundenplan</h1>
+
+    {#if data.configured}
+      {@render controls()}
+      <p class="px-2 text-xs text-zinc-400">{weekLabel}</p>
+
+      {#if data.filter?.classCode || data.filter?.teacherCode}
+        <div class="flex flex-wrap gap-1 px-2">
+          {#if data.filter.classCode}
             <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Klasse {data.filter.classCode}</span>
           {/if}
-          {#if data.filter?.teacherCode}
+          {#if data.filter.teacherCode}
             <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">{data.filter.teacherCode}</span>
           {/if}
         </div>
       {/if}
-    </header>
-    <div class="min-h-0 flex-1">{@render body()}</div>
-  </div>
-{:else}
-  <div class="grid h-full" style="grid-template-columns: 240px 1fr">
-    <!-- Page rail, same 240px as Einstellungen/Mail/Chat. -->
-    <aside class="flex h-full flex-col gap-3 border-r border-zinc-800 bg-zinc-900/30 p-3">
-      <h1 class="px-2 text-base font-semibold tracking-tight">Stundenplan</h1>
 
-      {#if data.configured}
-        {@render controls()}
-        <p class="px-2 text-xs text-zinc-400">{weekLabel}</p>
+      <div class="mt-auto flex flex-col gap-1">
+        <button
+          class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-200"
+          onclick={refresh}
+        >
+          <Icon name="refresh" size={16} />
+          Neu laden
+        </button>
+        <a
+          href="/settings?tab=stundenplan"
+          class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-200"
+        >
+          <Icon name="settings" size={16} />
+          Einstellungen
+        </a>
+      </div>
+    {/if}
+  </aside>
 
-        {#if data.filter?.classCode || data.filter?.teacherCode}
-          <div class="flex flex-wrap gap-1 px-2">
-            {#if data.filter.classCode}
-              <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Klasse {data.filter.classCode}</span>
-            {/if}
-            {#if data.filter.teacherCode}
-              <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">{data.filter.teacherCode}</span>
-            {/if}
-          </div>
+  <header class="shrink-0 border-b border-zinc-800 bg-zinc-900/30 px-4 py-3 xl:hidden">
+    <div class="flex items-center gap-2">
+      <h1 class="text-base font-semibold tracking-tight">Stundenplan</h1>
+      <div class="ml-auto flex items-center gap-2">
+        <button
+          class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+          onclick={refresh}
+          aria-label="Neu laden"
+        >
+          <Icon name="refresh" size={16} />
+        </button>
+        <a
+          href="/settings?tab=stundenplan"
+          class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+          aria-label="Einstellungen"
+        >
+          <Icon name="settings" size={16} />
+        </a>
+      </div>
+    </div>
+    {#if data.configured}
+      <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div class="w-full max-w-xs">{@render controls()}</div>
+        <span class="text-xs text-zinc-400">{weekLabel}</span>
+        {#if data.filter?.classCode}
+          <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Klasse {data.filter.classCode}</span>
         {/if}
+        {#if data.filter?.teacherCode}
+          <span class="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">{data.filter.teacherCode}</span>
+        {/if}
+      </div>
+    {/if}
+  </header>
 
-        <div class="mt-auto flex flex-col gap-1">
-          <button
-            class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-200"
-            onclick={refresh}
-          >
-            <Icon name="refresh" size={16} />
-            Neu laden
-          </button>
-          <a
-            href="/settings?tab=stundenplan"
-            class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-200"
-          >
-            <Icon name="settings" size={16} />
-            Einstellungen
-          </a>
-        </div>
-      {/if}
-    </aside>
-
-    <section class="min-h-0 overflow-hidden">{@render body()}</section>
-  </div>
-{/if}
+  <section class="min-h-0 flex-1 overflow-hidden">{@render body()}</section>
+</div>

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { invalidate } from "$app/navigation";
+  import Dropdown from "$lib/Dropdown.svelte";
   import Icon from "$lib/Icon.svelte";
   import { linkifyPlain, sanitizeHtml } from "$lib/linkify";
   import { composeStore } from "$lib/composeStore.svelte";
@@ -7,8 +9,18 @@
 
   let { data } = $props();
   const m = $derived(data.message);
+  const flagged = $derived(Boolean(m.is_flagged));
+  const folders = $derived((data as unknown as { folders?: Array<{ id: string; name: string; is_drafts?: boolean }> }).folders ?? []);
+  const moveTargets = $derived(folders.filter((f) => f.id !== data.folderId));
+  const isDraft = $derived(folders.find((f) => f.id === data.folderId)?.is_drafts ?? false);
+  let moveFormEl = $state<HTMLFormElement | undefined>();
+  let moveTarget = $state("");
 
-  async function openCompose(mode: "reply" | "reply-all" | "forward") {
+  // Reading a message flips its unread state on the server — re-fetch the list
+  // so the sidebar reflects it. Keyed on id so it fires once per message.
+  $effect(() => { void m.id; invalidate("mail:list"); });
+
+  async function openCompose(mode: "reply" | "reply-all" | "forward" | "draft") {
     const u = new URL("/api/mail/compose-prefill", window.location.origin);
     u.searchParams.set("mode", mode);
     u.searchParams.set("folder", data.folderId);
@@ -45,20 +57,69 @@
 </script>
 
 <article class="mx-auto flex h-full max-w-3xl flex-col px-8 py-6">
-  <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <header class="mb-4 flex items-center justify-between gap-3">
     <a href="/mail?folder={encodeURIComponent(data.folderId)}" class="inline-flex items-center gap-1 text-sm text-indigo-400 hover:text-indigo-300">
       <Icon name="chevron-left" size={16} /> zurück
     </a>
-    <div class="flex flex-wrap items-center gap-1">
-      <button onclick={() => openCompose("reply")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800">
-        <Icon name="chevron-left" size={14} /> Antworten
-      </button>
-      <button onclick={() => openCompose("reply-all")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Allen antworten">
-        Allen
-      </button>
-      <button onclick={() => openCompose("forward")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Weiterleiten">
-        <Icon name="chevron-right" size={14} /> Weiterleiten
-      </button>
+    <div class="flex items-center gap-1">
+      {#if isDraft}
+        <button onclick={() => openCompose("draft")} class="flex items-center gap-1.5 rounded-md border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-sm text-indigo-300 hover:bg-indigo-500/20" title="Entwurf bearbeiten">
+          <Icon name="edit" size={14} /> Bearbeiten
+        </button>
+      {:else}
+        <button onclick={() => openCompose("reply")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800">
+          <Icon name="chevron-left" size={14} /> Antworten
+        </button>
+        <button onclick={() => openCompose("reply-all")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Allen antworten">
+          Allen
+        </button>
+        <button onclick={() => openCompose("forward")} class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Weiterleiten">
+          <Icon name="chevron-right" size={14} /> Weiterleiten
+        </button>
+        <form method="POST" action="?/flag" use:enhance>
+          <input type="hidden" name="is_flagged" value={(!flagged).toString()} />
+          <button
+            class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
+            class:text-amber-300={flagged}
+            title={flagged ? "Markierung entfernen" : "Als wichtig markieren"}
+          >
+            <Icon name="star" size={14} /> {flagged ? "Markiert" : "Wichtig"}
+          </button>
+        </form>
+        <form method="POST" action="?/flag" use:enhance>
+          <input type="hidden" name="is_unread" value="true" />
+          <button class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800" title="Als ungelesen markieren">
+            <Icon name="mail-opened" size={14} /> Ungelesen
+          </button>
+        </form>
+      {/if}
+      {#if moveTargets.length}
+        <form method="POST" action="?/move" use:enhance bind:this={moveFormEl}>
+          <input type="hidden" name="target_folder_id" bind:value={moveTarget} />
+        </form>
+        <Dropdown align="right" buttonClass="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800">
+          {#snippet label()}
+            <Icon name="folder" size={14} /> Verschieben <Icon name="chevron-down" size={12} />
+          {/snippet}
+          {#snippet children(close)}
+            <ul class="max-h-72 overflow-y-auto">
+              {#each moveTargets as f}
+                <li>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-zinc-800"
+                    onclick={() => { moveTarget = f.id; close(); moveFormEl?.requestSubmit(); }}
+                  >
+                    <Icon name="folder" size={14} />
+                    <span class="truncate">{f.name}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/snippet}
+        </Dropdown>
+      {/if}
       <form method="POST" action="?/delete" use:enhance>
         <button class="flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/20" title="Löschen">
           <Icon name="trash" size={14} /> Löschen

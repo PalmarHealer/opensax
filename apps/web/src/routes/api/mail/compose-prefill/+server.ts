@@ -1,7 +1,20 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
-type Mode = "reply" | "reply-all" | "forward";
+type Mode = "reply" | "reply-all" | "forward" | "draft";
+
+/** Naive HTML→text fallback for drafts that only carry an HTML body. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>(?=)/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
 
 export const GET: RequestHandler = async ({ locals, url }) => {
   const c = locals.client!;
@@ -40,6 +53,25 @@ export const GET: RequestHandler = async ({ locals, url }) => {
       subject: subject.startsWith("Re: ") ? subject : `Re: ${subject}`,
       body: `\n\nAm ${dateStr} schrieb ${senderDisplay}:\n${quoted}`,
       reply_id: String(m.id),
+    });
+  }
+  if (mode === "draft") {
+    const addrs = (parties: { addr: string }[] | undefined) =>
+      (parties ?? []).map((r) => r.addr).filter(Boolean).join(", ");
+    const body = m.body_plain && m.body_plain.length
+      ? m.body_plain
+      : m.body_html
+        ? htmlToText(m.body_html)
+        : "";
+    return json({
+      to: addrs(m.to),
+      cc: addrs(m.cc),
+      bcc: addrs((m as { bcc?: { addr: string }[] }).bcc),
+      subject,
+      body,
+      // Editing an existing draft: carry its id so saving replaces it and
+      // sending deletes it from the Drafts folder.
+      draftId: String(m.id),
     });
   }
   if (mode === "forward") {

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="OpenSax">
+  <!-- Full-bleed background for maskable safety -->
+  <rect width="512" height="512" fill="#09090b"/>
+  <!-- Glyph centered within ~80% safe zone (≈10% padding on each side) -->
+  <g transform="translate(256 256)">
+    <!-- Outer "O" ring -->
+    <circle cx="0" cy="0" r="136" fill="none" stroke="#6366f1" stroke-width="48"/>
+    <!-- Inner "S" glyph -->
+    <path d="M56 -52c-13-17-33-26-56-26-32 0-56 18-56 42 0 24 19 34 53 42 34 7 53 17 53 42 0 25-24 42-56 42-23 0-43-10-56-26"
+          fill="none" stroke="#e4e4e7" stroke-width="34" stroke-linecap="round"/>
+  </g>
+</svg>

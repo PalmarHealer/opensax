@@ -54,7 +54,15 @@ export const actions: Actions = {
     const to_login = data.get("to_login")?.toString();
     const text = data.get("text")?.toString().trim();
     if (!to_login || !text) return fail(400, { error: "to_login+text required" });
-    await c.messenger.send(to_login, text);
+    try {
+      await c.messenger.send(to_login, text);
+    } catch (e) {
+      const raw = (e as Error).message || "";
+      const error = !raw || raw === "ERROR"
+        ? `Nachricht an ${to_login} konnte nicht gesendet werden. Empfänger:in unbekannt, Messenger gesperrt oder du wurdest blockiert.`
+        : raw;
+      return fail(502, { error, to_login, text });
+    }
     return { ok: true };
   },
 };

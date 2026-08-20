@@ -5,9 +5,9 @@
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
   import PersonChip from "$lib/PersonChip.svelte";
-  import { media } from "$lib/mediaQuery.svelte";
 
   let { data } = $props();
+  let sendError = $state<string | null>(null);
 
   type Msg = { id: number; from_login: string; to_login: string; text: string; date: number; is_unread?: boolean };
   function bucket(history: Msg[], myLogin: string | undefined): Map<string, Msg[]> {
@@ -28,11 +28,7 @@
 
   // Active conversation lives in the URL (?with=) so the layout switch / back/fwd preserves it.
   const activeFromUrl = $derived(page.url.searchParams.get("with"));
-  // Desktop auto-selects the first partner; on mobile the list stays visible until
-  // the user explicitly opens a conversation via ?with=.
-  const active = $derived<string | null>(
-    media.mobile ? (activeFromUrl || null) : (activeFromUrl || partners[0] || null),
-  );
+  const active = $derived<string | null>(activeFromUrl || partners[0] || null);
   function setActive(login: string | null) {
     const u = new URL(page.url);
     if (login) u.searchParams.set("with", login);
@@ -74,10 +70,9 @@
   });
 </script>
 
-<div class="grid h-full" style={media.mobile ? "grid-template-columns: 1fr" : "grid-template-columns: 240px 1fr"}>
-  <!-- Conversation list -->
-  {#if !media.mobile || !active}
-  <aside class="flex h-full min-w-0 flex-col border-zinc-800 bg-zinc-900/40 {media.mobile ? '' : 'border-r'}">
+<div class="grid h-full grid-cols-1 md:[grid-template-columns:240px_1fr]">
+  <!-- Conversation list: full-width on mobile, hidden when a chat is explicitly opened -->
+  <aside class="h-full flex-col border-r border-zinc-800 bg-zinc-900/40 md:flex {activeFromUrl ? 'hidden md:flex' : 'flex'}">
     <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
       <h1 class="text-sm font-semibold uppercase tracking-wide text-zinc-400">Chats</h1>
       <button
@@ -107,11 +102,9 @@
       {/each}
     </div>
   </aside>
-  {/if}
 
-  <!-- Active conversation -->
-  {#if !media.mobile || active}
-  <main class="flex h-full min-w-0 flex-col">
+  <!-- Active conversation: full-width on mobile only when a chat is explicitly opened -->
+  <main class="h-full flex-col md:flex {activeFromUrl ? 'flex' : 'hidden md:flex'}">
     {#if !active}
       <div class="grid flex-1 place-items-center text-sm text-zinc-500">
         <div class="text-center">
@@ -123,18 +116,16 @@
         </div>
       </div>
     {:else}
-      <header class="flex items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-950/80 py-3 {media.mobile ? 'px-3' : 'px-6'}">
+      <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-3 md:px-6">
         <div class="flex min-w-0 items-center gap-2">
-          {#if media.mobile}
-            <button
-              onclick={() => setActive(null)}
-              class="-ml-1 grid h-9 shrink-0 place-items-center gap-1 rounded-md px-2 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
-              aria-label="Zurück zu Chats"
-            ><span class="flex items-center gap-1"><Icon name="chevron-left" size={16} /> Chats</span></button>
-          {/if}
+          <button
+            onclick={() => setActive(null)}
+            class="-ml-1 rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 md:hidden"
+            aria-label="Zurück"
+          ><Icon name="chevron-left" size={20} /></button>
           <div class="min-w-0">
-            <p class="truncate text-sm font-semibold"><PersonChip name={partnerLabel(active)} login={active} /></p>
-            <p class="truncate text-[11px] text-zinc-500">{active}</p>
+          <p class="text-sm font-semibold"><PersonChip name={partnerLabel(active)} login={active} /></p>
+          <p class="text-[11px] text-zinc-500">{active}</p>
           </div>
         </div>
         <button onclick={refresh} class="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
@@ -157,11 +148,20 @@
         {/each}
       </ol>
 
+      {#if sendError}
+        <div class="border-t border-red-900/40 bg-red-950/40 px-4 py-2 text-xs text-red-300" role="alert">
+          {sendError}
+        </div>
+      {/if}
       <form
         method="POST"
         action="?/send"
-        use:enhance={() => async ({ update }) => { await update({ reset: false }); draft = ""; }}
-        class="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 py-3 {media.mobile ? 'px-3' : 'px-4'}"
+        use:enhance={() => async ({ result, update }) => {
+          await update({ reset: false });
+          if (result.type === "success") { sendError = null; draft = ""; }
+          else if (result.type === "failure") sendError = (result.data as { error?: string } | undefined)?.error ?? "Senden fehlgeschlagen";
+        }}
+        class="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-4 py-3"
       >
         <input type="hidden" name="to_login" value={active} />
         <input
@@ -169,15 +169,14 @@
           bind:value={draft}
           placeholder="Nachricht…"
           required
-          class="min-w-0 flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+          class="flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm outline-none focus:border-indigo-500"
         />
-        <button class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-indigo-500 text-white hover:bg-indigo-400" aria-label="Senden">
+        <button class="grid h-9 w-9 place-items-center rounded-full bg-indigo-500 text-white hover:bg-indigo-400" aria-label="Senden">
           <Icon name="send" size={16} />
         </button>
       </form>
     {/if}
   </main>
-  {/if}
 </div>
 
 <Modal open={newChatOpen} onclose={() => (newChatOpen = false)} title="Neuer Chat" width="max-w-lg">

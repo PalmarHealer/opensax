@@ -101,6 +101,12 @@ export class MailApi {
     return this.session.call("send_mail", params, this.focus());
   }
 
+  /**
+   * Save a message into the Drafts folder. NOTE: the LernSax `save_draft` RPC
+   * can only CREATE a draft — it rejects any `message_id`/`id` param and returns
+   * an empty body (no id). To "update" a draft, callers must create a fresh one
+   * and delete the previous version (see the web save-draft route).
+   */
   async saveDraft(params: {
     to?: string;
     cc?: string;
@@ -108,7 +114,6 @@ export class MailApi {
     subject?: string;
     body_plain?: string;
     body_html?: string;
-    message_id?: string | number;
   }): Promise<Record<string, unknown>> {
     return this.session.call("save_draft", params, this.focus());
   }
@@ -152,6 +157,25 @@ export class MailApi {
     const r = await this.session.call("export_session_file", params, this.focus());
     const file = (r.file ?? r) as { id: string; name: string; size: number; download_url: string };
     return file;
+  }
+
+  /**
+   * Stages a file as a session-file so it can be attached to an outgoing mail
+   * (pass the returned id via `import_session_files` to {@link sendMail}).
+   *
+   * Verified against the live API: method `add_file` under the `session_files`
+   * focus, with base64 `data` and NO `data_encoding` field. Returns
+   * `{ file: { id, name, size, download_url } }`. The id is read defensively in
+   * case the response shape varies.
+   */
+  async addSessionFile(name: string, dataBase64: string): Promise<string> {
+    const r = await this.session.call(
+      "add_file",
+      { name, data: dataBase64 },
+      { object: "session_files" },
+    );
+    const file = (r.file ?? r) as { id?: string };
+    return (file.id ?? (r.id as string)) ?? "";
   }
 
   async addFolder(params: { name: string; parent_id?: string; expires?: number }): Promise<Record<string, unknown>> {

@@ -9,6 +9,7 @@
   let error = $state<string | null>(null);
   let cookiesOk = $state(false);
   let cookieInfoOpen = $state(false);
+  let disclaimerOpen = $state(false);
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -93,8 +94,59 @@
         Credentials werden serverseitig verschlüsselt gespeichert.
       </p>
     </form>
+
+    <p class="mt-4 text-center text-[11px] leading-relaxed text-zinc-500">
+      Inoffizielles, nicht-kommerzielles Open-Source-Projekt.
+      Kein Bezug zu LernSax, DigiOnline GmbH, LaSuB oder dem Freistaat Sachsen.
+      <button
+        type="button"
+        onclick={() => (disclaimerOpen = true)}
+        class="cursor-pointer text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
+      >Mehr erfahren</button>
+    </p>
   </div>
 </div>
+
+{#if disclaimerOpen}
+  <div class="fixed inset-0 z-40 bg-black/60" onclick={() => (disclaimerOpen = false)} role="presentation"></div>
+  <div class="fixed left-1/2 top-1/2 z-50 w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl" role="dialog">
+    <h2 class="mb-2 text-base font-semibold">Über OpenSax</h2>
+    <div class="space-y-3 text-sm text-zinc-300">
+      <p>
+        OpenSax ist ein <span class="font-medium">inoffizielles, nicht-kommerzielles Open-Source-Projekt</span>
+        und steht in keinerlei Verbindung zu LernSax, der DigiOnline GmbH, dem
+        Landesamt für Schule und Bildung (LaSuB) oder dem Freistaat Sachsen.
+        Die Marke „LernSax" gehört dem jeweiligen Rechteinhaber.
+      </p>
+      <p class="text-xs text-zinc-400">
+        Die Anwendung kommuniziert ausschließlich mit der vom Betreiber unter
+        <code class="rounded bg-zinc-900 px-1 py-0.5">lernsax.de/wws/api.php</code>
+        öffentlich dokumentierten WebWeaver-API sowie dem Standard-WebDAV-Endpoint.
+        Es findet kein Reverse Engineering statt, keine Zugangssicherung wird
+        umgangen — die Anmeldung erfolgt mit deinen eigenen Zugangsdaten über
+        das reguläre Login.
+      </p>
+      <p class="text-xs text-zinc-400">
+        Bestimmungsgemäße Nutzung im Rahmen der LernSax-Nutzungsbedingungen
+        (bildungsbezogen, nicht-kommerziell, kein Massenversand) liegt in deiner
+        Verantwortung. Die Autoren übernehmen keine Gewähr für Verfügbarkeit,
+        Funktion oder Datenverlust.
+      </p>
+      <p class="text-xs text-zinc-500">
+        Lizenz: GPL-3.0 ·
+        <a
+          href="https://github.com/PalmarHealer/opensax"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-zinc-300 underline-offset-2 hover:underline"
+        >Quellcode auf GitHub</a>
+      </p>
+    </div>
+    <div class="mt-4 flex justify-end">
+      <button onclick={() => (disclaimerOpen = false)} class="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400">Verstanden</button>
+    </div>
+  </div>
+{/if}
 
 {#if cookieInfoOpen}
   <div class="fixed inset-0 z-40 bg-black/60" onclick={() => (cookieInfoOpen = false)} role="presentation"></div>

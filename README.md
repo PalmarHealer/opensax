@@ -85,9 +85,10 @@ Protokoll-Eigenheiten, die in keiner Doku stehen:
 - **Sidenav** (default): schmale 64px-Rail links mit Icons, Avatar unten
 - **Topnav**: horizontale Bar mit Icon+Label-Pillen, Avatar oben rechts
 
-Beides in drei Breakpoints: mobil (< 768px) Drill-down und Tageslisten, Tablet
-(bis 1279px) Raster ohne zweite Seitenleiste, Desktop (ab 1280px) mit 240px
-Seiten-Rail.
+Responsive rein über CSS-Breakpoints, ohne JS-Viewport-Store: mobil (< `md`)
+Bottom-Tabs und Drill-down, ab `md` die Mehrspalten-Ansichten, ab `xl`
+zusätzlich die 240px-Seitenleisten. Ein JS-Store müsste beim SSR raten und
+würde bei Fehlbedienung die Hydration mitreißen.
 
 Wechsel in Settings → Navigation. Custom-Order und Sichtbarkeit der Tabs werden in `localStorage` gespeichert.
 
@@ -175,8 +176,37 @@ Offen:
 - **Klassen-/Gruppen-Beitritt mit Passwort** (LernSax-API-Endpoint nicht öffentlich erreichbar)
 - **Mail-Filterregeln** (gleiche Story — API nicht exposed)
 
-## Lizenz / Disclaimer
+## Disclaimer
 
-Inoffiziell. Kein Bezug zu LernSax / DigiOnline GmbH / LaSuB / Freistaat Sachsen.
-Nutzt die offiziell dokumentierte (aber nicht beworbene) WebWeaver-API auf
-`lernsax.de/wws/api.php` und das Standard-Web-Login.
+OpenSax ist ein **inoffizielles, nicht-kommerzielles Open-Source-Projekt** und
+steht in keinerlei Verbindung zu LernSax, der DigiOnline GmbH, dem
+Landesamt für Schule und Bildung (LaSuB) oder dem Freistaat Sachsen.
+Die Marke „LernSax" gehört dem jeweiligen Rechteinhaber.
+
+OpenSax kommuniziert ausschließlich mit der vom Betreiber unter
+`https://www.lernsax.de/wws/api.php` öffentlich dokumentierten WebWeaver-JSON-RPC-API
+sowie dem Standard-WebDAV-Endpoint. Es findet kein Reverse Engineering statt,
+keine Zugangssicherung wird umgangen — die Anmeldung erfolgt mit den
+**eigenen Zugangsdaten der nutzenden Person** über das reguläre Login.
+
+Bestimmungsgemäße Nutzung im Rahmen der LernSax-Nutzungsbedingungen
+(bildungsbezogen, nicht-kommerziell, kein Massenversand) liegt in der
+Verantwortung der nutzenden Person. Die Autoren übernehmen keine Gewähr
+für Verfügbarkeit, Funktion oder Datenverlust.
+
+### Hinweis zum Selbst-Hosten
+
+Wer eine OpenSax-Instanz für andere Personen bereitstellt, wird datenschutz-
+rechtlich Verantwortlicher i.S.d. Art. 4 Nr. 7 DSGVO und benötigt mindestens:
+
+- Impressum nach § 5 DDG
+- Datenschutzerklärung nach Art. 13 DSGVO
+- Auftragsverarbeitungsvertrag mit dem Hoster
+- dokumentierte technische und organisatorische Maßnahmen
+
+Für die reine **Eigennutzung** (Self-Hosting für sich selbst) gelten diese
+Pflichten nicht. Empfohlen wird genau dieser Modus.
+
+## Lizenz
+
+GPL-3.0 — siehe [`LICENSE`](LICENSE).

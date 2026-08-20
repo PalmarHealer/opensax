@@ -6,7 +6,6 @@
   import ConnectionsList from "$lib/ConnectionsList.svelte";
   import ConnectionsMcpUrl from "$lib/ConnectionsMcpUrl.svelte";
   import { NAV_TABS, loadNavConfig, saveNavConfig, tabById, type NavConfig, type NavMode } from "$lib/nav";
-  import { media } from "$lib/mediaQuery.svelte";
 
   let { data, form } = $props();
   const p = $derived(data.profile);
@@ -109,21 +108,20 @@
   }
 
   type Tab = "profile" | "mail" | "stundenplan" | "connections" | "navigation" | "account";
-  // Single source for both the mobile strip and the desktop rail — they drifted
-  // apart when they were two literals.
-  const TAB_ITEMS: ReadonlyArray<[Tab, string, string]> = [
+  const SECTIONS = [
     ["profile", "Profil", "settings"],
     ["mail", "Mail", "mail"],
     ["stundenplan", "Stundenplan", "table"],
     ["connections", "Verbindungen", "send"],
     ["navigation", "Navigation", "list-check"],
     ["account", "Account", "logout"],
-  ];
-  const TABS: ReadonlySet<Tab> = new Set(TAB_ITEMS.map(([id]) => id));
+  ] as const;
+  const TABS: ReadonlySet<Tab> = new Set(SECTIONS.map(([k]) => k));
   const tab = $derived.by<Tab>(() => {
     const t = page.url.searchParams.get("tab");
     return TABS.has(t as Tab) ? (t as Tab) : "profile";
   });
+  const currentLabel = $derived(SECTIONS.find(([k]) => k === tab)?.[1] ?? "Einstellungen");
   function setTab(t: Tab) {
     const u = new URL(page.url);
     if (t === "profile") u.searchParams.delete("tab");
@@ -234,15 +232,17 @@
   }
 </script>
 
-{#if media.mobile}
-<div class="flex h-full flex-col">
-  <!-- Tab strip -->
-  <div class="shrink-0 border-b border-zinc-800 bg-zinc-900/30">
-    <h1 class="px-4 pt-3 text-base font-semibold tracking-tight">Einstellungen</h1>
-    <div class="flex gap-1 overflow-x-auto px-2 pb-2 pt-2">
-      {#each TAB_ITEMS as [k, label, icon]}
+<div class="grid h-full grid-cols-1 md:[grid-template-columns:240px_1fr]">
+  <!-- Section nav: collapsible <details> on mobile, static rail at md+ -->
+  <details class="border-b border-zinc-800 bg-zinc-900/30 md:hidden">
+    <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold">
+      <span>Einstellungen · {currentLabel}</span>
+      <Icon name="chevron-down" size={16} />
+    </summary>
+    <nav class="border-t border-zinc-800 p-2">
+      {#each SECTIONS as [k, label, icon]}
         <button
-          class="flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition
+          class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition
             {tab === k ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'}"
           onclick={() => setTab(k as Tab)}
         >
@@ -250,20 +250,13 @@
           {label}
         </button>
       {/each}
-    </div>
-  </div>
+    </nav>
+  </details>
 
-  <!-- Tab body -->
-  <section class="flex-1 overflow-auto">
-    {@render tabBody()}
-  </section>
-</div>
-{:else}
-<div class="grid h-full" style="grid-template-columns: 240px 1fr">
   <!-- Tab rail -->
-  <aside class="flex h-full flex-col border-r border-zinc-800 bg-zinc-900/30 p-3">
+  <aside class="hidden h-full flex-col border-r border-zinc-800 bg-zinc-900/30 p-3 md:flex">
     <h1 class="mb-3 px-2 text-base font-semibold tracking-tight">Einstellungen</h1>
-    {#each TAB_ITEMS as [k, label, icon]}
+    {#each SECTIONS as [k, label, icon]}
       <button
         class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition
           {tab === k ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'}"
@@ -277,19 +270,13 @@
 
   <!-- Tab body -->
   <section class="overflow-auto">
-    {@render tabBody()}
-  </section>
-</div>
-{/if}
-
-{#snippet tabBody()}
-    <div class="mx-auto max-w-2xl px-8 py-8">
+    <div class="mx-auto max-w-2xl px-4 py-4 md:px-8 md:py-8">
       {#if tab === "profile"}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Profil</h2>
         <form method="POST" action="?/saveProfile" use:enhance class="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Name</legend>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Vorname</span>
                 <input name="firstname" value={p.firstname ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -298,7 +285,7 @@
                 <span class="mb-1 block text-xs text-zinc-400">Nachname</span>
                 <input name="lastname" value={p.lastname ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block md:col-span-2">
+              <label class="block col-span-2">
                 <span class="mb-1 block text-xs text-zinc-400">Titel</span>
                 <input name="title" value={p.title ?? ""} placeholder="Dr., Prof. …" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
@@ -307,7 +294,7 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Kontakt</legend>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Telefon</span>
                 <input name="phone" value={p.phone ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -329,8 +316,8 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Adresse</legend>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <label class="block sm:col-span-3">
+            <div class="grid grid-cols-3 gap-3">
+              <label class="block col-span-3">
                 <span class="mb-1 block text-xs text-zinc-400">Straße</span>
                 <input name="street" value={p.street ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
@@ -338,11 +325,11 @@
                 <span class="mb-1 block text-xs text-zinc-400">PLZ</span>
                 <input name="zip" value={p.zip ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block sm:col-span-2">
+              <label class="block col-span-2">
                 <span class="mb-1 block text-xs text-zinc-400">Ort</span>
                 <input name="city" value={p.city ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block sm:col-span-3">
+              <label class="block col-span-3">
                 <span class="mb-1 block text-xs text-zinc-400">Land</span>
                 <input name="country" value={p.country ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
@@ -351,7 +338,7 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Arbeit</legend>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Firma / Schule</span>
                 <input name="company" value={p.company ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -373,7 +360,7 @@
 
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Persönlich</legend>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-3">
               <label class="block">
                 <span class="mb-1 block text-xs text-zinc-400">Geburtstag (TT.MM.JJJJ)</span>
                 <input name="birthday" value={p.birthday ?? ""} placeholder="01.01.2000" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
@@ -382,7 +369,7 @@
                 <span class="mb-1 block text-xs text-zinc-400">Skype</span>
                 <input name="skype" value={p.skype ?? ""} class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
               </label>
-              <label class="block md:col-span-2">
+              <label class="block col-span-2">
                 <span class="mb-1 block text-xs text-zinc-400">Notiz</span>
                 <textarea name="comment" rows="3" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500">{p.comment ?? ""}</textarea>
               </label>
@@ -399,7 +386,7 @@
                 <option value="2" selected={p.visible === "2"}>Alle</option>
               </select>
             </label>
-            <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
               <label class="flex items-center gap-2"><input type="checkbox" name="show_phone" value="1" checked={p.show_phone === "1"} /> Telefon zeigen</label>
               <label class="flex items-center gap-2"><input type="checkbox" name="show_email" value="1" checked={p.show_email === "1"} /> E-Mail zeigen</label>
               <label class="flex items-center gap-2"><input type="checkbox" name="show_address" value="1" checked={p.show_address === "1"} /> Adresse zeigen</label>
@@ -408,8 +395,7 @@
           </fieldset>
 
           {#if form?.ok && form?.scope === "profile"}<p class="text-xs text-emerald-400">Gespeichert.</p>{/if}
-          <!-- Scoped: an unscoped check showed other tabs' failures down here. -->
-          {#if form?.error && form?.scope === "profile"}<p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>{/if}
+          {#if form?.error}<p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>{/if}
 
           <div class="flex justify-end pt-2">
             <button class="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400">Speichern</button>
@@ -421,7 +407,7 @@
           <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-400">Signatur</h3>
           <p class="text-xs text-zinc-500">Wird automatisch beim Antworten und Weiterleiten angefügt.</p>
           <textarea name="text" rows="8" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-indigo-500" placeholder="-- &#10;Vorname Nachname&#10;…">{data.signature.text}</textarea>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-3">
             <label class="block">
               <span class="mb-1 block text-xs text-zinc-400">Position bei Antworten</span>
               <select name="position_answer" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500">
@@ -605,8 +591,12 @@
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Navigation</h2>
 
         <section class="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Layout</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="mb-1 flex items-center justify-between gap-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Layout</h3>
+            <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">Nur für Desktop-Geräte</span>
+          </div>
+          <p class="mb-3 text-xs text-zinc-500">Auf Mobilgeräten wird immer die untere Tab-Leiste mit Menü verwendet.</p>
+          <div class="grid grid-cols-2 gap-3">
             <button
               onclick={() => setMode("sidenav")}
               class="group flex flex-col items-stretch overflow-hidden rounded-xl border-2 transition
@@ -639,10 +629,11 @@
         </section>
 
         <section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <div class="mb-3 flex items-center justify-between">
+          <div class="mb-1 flex items-center justify-between">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Tabs</h3>
             <p class="text-xs text-zinc-500">Drag &amp; Drop zum Verschieben</p>
           </div>
+          <p class="mb-3 text-xs text-zinc-500">Reihenfolge &amp; Sichtbarkeit gelten auch für die untere Leiste auf dem Handy (erste Einträge zuerst).</p>
 
           <p class="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Sichtbar</p>
           <ul
@@ -716,7 +707,7 @@
       {:else}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Account</h2>
         <section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
-          <dl class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-y-2 text-sm">
+          <dl class="grid grid-cols-[120px_1fr] gap-y-2 text-sm">
             <dt class="text-zinc-500">Login</dt><dd>{data.user?.login ?? "—"}</dd>
             <dt class="text-zinc-500">Voller Name</dt><dd>{data.user?.fullname ?? "—"}</dd>
             <dt class="text-zinc-500">Schule</dt><dd>{data.user?.base_user?.name_hr ?? "—"}</dd>
@@ -865,4 +856,5 @@
         </section>
       {/if}
     </div>
-{/snippet}
+  </section>
+</div>

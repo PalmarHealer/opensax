@@ -18,16 +18,31 @@ export const actions: Actions = {
   flag: async ({ locals, params, request }) => {
     const c = locals.client!;
     const data = await request.formData();
-    const isUnread = data.get("is_unread")?.toString() === "true";
-    const isFlagged = data.get("is_flagged")?.toString() === "true";
+    const patch: { folder_id: string; message_id: string; is_unread?: boolean; is_flagged?: boolean } = {
+      folder_id: params.folderId,
+      message_id: params.messageId,
+    };
+    const u = data.get("is_unread")?.toString();
+    const f = data.get("is_flagged")?.toString();
+    if (u === "true" || u === "false") patch.is_unread = u === "true";
+    if (f === "true" || f === "false") patch.is_flagged = f === "true";
     try {
-      await c.mail.setMessage({
-        folder_id: params.folderId,
-        message_id: params.messageId,
-        is_unread: isUnread,
-        is_flagged: isFlagged,
-      });
+      await c.mail.setMessage(patch);
     } catch (e) { return fail(500, { error: (e as Error).message }); }
-    return { ok: true };
+    if (patch.is_unread === true) {
+      throw redirect(303, `/mail?folder=${encodeURIComponent(params.folderId)}`);
+    }
+    return { ok: true, ...patch };
+  },
+  move: async ({ locals, params, request }) => {
+    const c = locals.client!;
+    const data = await request.formData();
+    const target = data.get("target_folder_id")?.toString();
+    if (!target) return fail(400, { error: "target_folder_id required" });
+    if (target === params.folderId) return { ok: true };
+    try {
+      await c.mail.moveMessage(params.folderId, params.messageId, target);
+    } catch (e) { return fail(500, { error: (e as Error).message }); }
+    throw redirect(303, `/mail?folder=${encodeURIComponent(target)}`);
   },
 };
