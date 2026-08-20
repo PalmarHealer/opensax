@@ -33,11 +33,34 @@ docker compose up -d --build
 `docker-entrypoint.sh` renders `Listen`/`Allow` from those two variables at
 start-up, so `tinyproxy.conf` stays free of deployment-specific addresses.
 
-The compose file uses `network_mode: host` on purpose: with published ports,
-docker-proxy sits in the path and rewrites the source address, so tinyproxy
-would see the bridge gateway instead of the Vienna node and `Allow` would be
-meaningless. Host networking preserves the real source IP and lets `Listen`
-bind directly to the `tailscale0` address.
+Ports are never published: docker-proxy would sit in the path and rewrite the
+source address, so tinyproxy would see the bridge gateway instead of the Vienna
+node and `Allow` would be meaningless. Both network modes below preserve the
+real source IP and let `Listen` bind directly to the tailnet address.
+
+#### When Tailscale itself runs in a container
+
+Some nodes have no `tailscale0` on the host — their only tailnet presence is a
+`tailscale/tailscale` container, and everything that needs to be reachable over
+the tailnet joins *its* network namespace. On such a node `network_mode: host`
+would leave the relay off the tailnet entirely.
+
+Point `RELAY_NETWORK_MODE` at that container instead, and use its tailnet IP:
+
+```sh
+export RELAY_NETWORK_MODE=container:tailscale   # the tailscale container's name
+export RELAY_LISTEN=100.x.y.z                   # that container's tailnet IP
+export RELAY_ALLOW=100.x.y.z                    # the Vienna node's Tailscale IP
+docker compose up -d --build
+```
+
+To find both values on such a node: `docker ps` shows which containers run with
+`network_mode: container:…`, and the shared one is the tailscale container;
+`docker exec <it> tailscale ip -4` prints the address to listen on.
+
+The relay's lifetime is then tied to that container — if Tailscale restarts,
+the relay loses its network namespace and needs a restart too. That is the same
+trade-off every other service sharing the namespace already makes.
 
 `RELAY_ALLOW` may be a comma-separated list if more than one peer needs the
 relay. Leaving it unset logs a warning and falls back to "anything that can

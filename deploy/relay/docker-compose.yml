@@ -3,18 +3,29 @@
 #   RELAY_LISTEN=$(tailscale ip -4) RELAY_ALLOW=<vienna-tailscale-ip> \
 #     docker compose up -d --build
 #
-# network_mode: host is deliberate. Published ports would put docker-proxy in
-# the path and rewrite the source address, which would defeat the `Allow`
-# check — tinyproxy would see the bridge gateway instead of the Vienna node.
-# Host networking keeps the real source IP and lets `Listen` bind straight to
-# the tailscale0 address, so the proxy is never reachable from the public
-# internet.
+# Never publish ports. docker-proxy would sit in the path and rewrite the
+# source address, so tinyproxy would see the bridge gateway instead of the
+# Vienna node and `Allow` would be meaningless. Both network modes below keep
+# the real source IP and let `Listen` bind straight to the tailnet address, so
+# the proxy is never reachable from the public internet.
+#
+# RELAY_NETWORK_MODE picks how this container reaches the tailnet:
+#
+#   host                  Tailscale runs on the host (`tailscale0` is a host
+#                         interface). The default.
+#   container:<name>      Tailscale runs in a container and other services join
+#                         its network namespace. Then RELAY_LISTEN is that
+#                         container's tailnet IP, not the host's.
+#
+# The second case is not exotic — a node whose only tailnet presence is a
+# `tailscale/tailscale` container has no `tailscale0` on the host at all, and
+# host networking would leave the relay off the tailnet entirely.
 services:
   lernsax-relay:
     build: .
     container_name: lernsax-relay
     restart: unless-stopped
-    network_mode: host
+    network_mode: ${RELAY_NETWORK_MODE:-host}
     environment:
       # This node's Tailscale IP — `tailscale ip -4`. Required.
       RELAY_LISTEN: ${RELAY_LISTEN:?set to this node's Tailscale IP}

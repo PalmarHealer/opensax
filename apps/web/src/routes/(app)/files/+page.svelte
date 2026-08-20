@@ -2,6 +2,7 @@
   import { enhance } from "$app/forms";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { untrack } from "svelte";
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
   import PersonChip from "$lib/PersonChip.svelte";
@@ -107,7 +108,10 @@
   // Close on folder navigation, OR when there's no longer a meaningful
   // version history (≤1 variant left). Mid-list deletions keep the panel
   // open so the user can keep working through the list.
-  let lastFolderId = $state(data.folderId);
+  // `untrack` because the seed really is meant to be the value at mount: this
+  // is a previous-value tracker, not a derivation. Reading `data` plainly here
+  // would look like an accidental snapshot of reactive state.
+  let lastFolderId = untrack(() => data.folderId);
   $effect(() => {
     if (data.folderId !== lastFolderId) {
       versionsKey = null;
@@ -187,7 +191,9 @@
 
   // Drag & drop
   let dragActive = $state(false);
-  let uploadFormEl: HTMLFormElement;
+  // `bind:this` writes here after mount, so it has to be reactive — a plain
+  // `let` leaves anything reading it stuck on `undefined`.
+  let uploadFormEl = $state<HTMLFormElement | null>(null);
   function onDrop(e: DragEvent) {
     e.preventDefault();
     dragActive = false;
