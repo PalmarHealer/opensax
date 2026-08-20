@@ -35,7 +35,7 @@
       {/if}
 
       {#if canWrite && !data.permissionError}
-        <form method="POST" action="?/create" use:enhance class="mb-6 flex gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+        <form method="POST" action="?/create" use:enhance class="mb-6 flex flex-col gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 md:flex-row md:items-center">
           <input type="hidden" name="group" value={groupValue} />
           <input
             name="title"
@@ -47,9 +47,9 @@
           <input
             name="due_date"
             type="date"
-            class="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500 md:w-auto"
           />
-          <button class="rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium hover:bg-indigo-400">Anlegen</button>
+          <button class="w-full rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium hover:bg-indigo-400 md:w-auto">Anlegen</button>
         </form>
       {/if}
 

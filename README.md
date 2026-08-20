@@ -55,12 +55,40 @@ LERNSAX_WEB_SESSION_KEY=<32+ char secret>
 | **Notizen** | Kartengrid mit 6 Farben, Inline-Edit |
 | **Chat** | Discord-Style Bubbles · Konversationsliste mit Last-Message-Preview · Neuer Chat aus Gruppen-Mitgliedern (Online-Indikator + Suche) oder manueller Email · Aktiver Chat in URL `?with=` |
 | **Dateien** | Drive-Browser mit Drag&Drop-Upload · Quota-Bar · Click-anywhere auf Zeile · **Inline-Preview** für PDF/Bild/Text via Server-Proxy (kein Fullscreen) · Datei erscheint als "Sub-Ordner" im Breadcrumb · Forced-Save-Download · Mkdir/Rename/Delete |
-| **Settings** | Tab-Rail mit URL-State `?tab=` · Profil mit allen LernSax-Feldern · Mail-Signatur · **Layout-Picker** (Sidenav vs. Topnav) · **Drag&Drop Tab-Reordering** mit Live-Shift, Drop-into-Hidden-Zone |
+| **Stundenplan** | Wochenraster aus **DaVinci** (nicht LernSax) — Zeilen sind Stundenblöcke, gleiche Stunde liegt über alle Tage auf gleicher Höhe · Vertretungen, Entfall und Verlegungen farbig markiert · geteilte Klassen nebeneinander · Auto-Filter auf die eigene Klasse/Lehrkraft · Zugang pro Nutzer in Settings, verschlüsselt gespeichert |
+| **Settings** | Tab-Rail mit URL-State `?tab=` · Profil mit allen LernSax-Feldern · Mail-Signatur · **Stundenplan-Zugang** (Endpoint/Login mit Verbindungstest) · **Layout-Picker** (Sidenav vs. Topnav) · **Drag&Drop Tab-Reordering** mit Live-Shift, Drop-into-Hidden-Zone |
+
+### Stundenplan-Datenquellen
+
+DaVinci wird auf zwei Arten publiziert, und Schulen sagen selten welche. OpenSax
+probt beim Speichern einmal und merkt sich das Ergebnis:
+
+| Quelle | Erkennung | Was drin ist |
+|---|---|---|
+| **InfoServer** (`daVinciIS.dll`) | JSON-Antwort mit `about`/`result` | Vollständiger Plan **und** Vertretungen; Login bindet die Ansicht automatisch an Klasse oder Lehrkraft |
+| **HTML-Export** | Generierte Seiten mit Monatsindex + Tagestabellen | Nur Abweichungen, kein Login, keine Uhrzeiten (nur Stundennummern) — Klasse muss in Settings gesetzt werden |
+
+Protokoll-Eigenheiten, die in keiner Doku stehen:
+
+- Das Passwort geht als `key`, ungesalzenes MD5. InfoServer-Builds um 6.5.77
+  lehnen das Klartextfeld mit **HTTP 910** ab.
+- Auth-Fehler kommen als **9xx**-Status statt 401.
+- Benutzernamen haben signifikante Leerzeichen (`"IT 25/3 "`) und dürfen nicht
+  getrimmt werden.
+- Ein Endpoint ohne Schema wird erst über HTTPS, dann HTTP versucht — die
+  meisten Schulserver sprechen nur HTTP. Mit `https://` davor bleibt es dabei.
+  Die URL, die geantwortet hat, wird gespeichert, damit spätere Aufrufe nicht
+  den toten Versuch mitzahlen.
 
 ### Layout-Modi
 
 - **Sidenav** (default): schmale 64px-Rail links mit Icons, Avatar unten
 - **Topnav**: horizontale Bar mit Icon+Label-Pillen, Avatar oben rechts
+
+Responsive rein über CSS-Breakpoints, ohne JS-Viewport-Store: mobil (< `md`)
+Bottom-Tabs und Drill-down, ab `md` die Mehrspalten-Ansichten, ab `xl`
+zusätzlich die 240px-Seitenleisten. Ein JS-Store müsste beim SSR raten und
+würde bei Fehlbedienung die Hydration mitreißen.
 
 Wechsel in Settings → Navigation. Custom-Order und Sichtbarkeit der Tabs werden in `localStorage` gespeichert.
 
@@ -125,6 +153,11 @@ Stateless TypeScript-Wrapper:
 - `LernSaxSession` — JSON-RPC-Transport mit Batch + Auto-Reload + Re-Login bei Session-Expiry
 - `WebDavClient` — Basic-Auth WebDAV für große Dateien
 - `SessionCache` — TTL-Pool für den MCP-Server
+- `fetchDaVinci` / `expandDaVinciDays` — DaVinci-InfoServer: JSON holen und die
+  Unterrichts*serien* (eine Zeile trägt alle ihre Termine) zu Tageseinträgen
+  auffalten, Vertretungen eingerechnet
+- `fetchDaVinciHtml` — der statische HTML-Export als zweite Quelle
+- `probeDaVinciSource` — erkennt, welche der beiden ein Endpoint ist
 - Hilfsfunktionen: `buildFileTree`, `buildFileBreadcrumb`, `groupHasRight`, `userDisplay`, `mailPartyDisplay`, `notificationDate`
 
 ## Sicherheit

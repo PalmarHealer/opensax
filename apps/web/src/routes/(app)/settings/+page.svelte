@@ -107,19 +107,20 @@
     }
   }
 
-  type Tab = "profile" | "mail" | "connections" | "navigation" | "account";
-  const TABS: ReadonlySet<Tab> = new Set(["profile", "mail", "connections", "navigation", "account"]);
-  const tab = $derived.by<Tab>(() => {
-    const t = page.url.searchParams.get("tab");
-    return TABS.has(t as Tab) ? (t as Tab) : "profile";
-  });
+  type Tab = "profile" | "mail" | "stundenplan" | "connections" | "navigation" | "account";
   const SECTIONS = [
     ["profile", "Profil", "settings"],
     ["mail", "Mail", "mail"],
+    ["stundenplan", "Stundenplan", "table"],
     ["connections", "Verbindungen", "send"],
     ["navigation", "Navigation", "list-check"],
     ["account", "Account", "logout"],
   ] as const;
+  const TABS: ReadonlySet<Tab> = new Set(SECTIONS.map(([k]) => k));
+  const tab = $derived.by<Tab>(() => {
+    const t = page.url.searchParams.get("tab");
+    return TABS.has(t as Tab) ? (t as Tab) : "profile";
+  });
   const currentLabel = $derived(SECTIONS.find(([k]) => k === tab)?.[1] ?? "Einstellungen");
   function setTab(t: Tab) {
     const u = new URL(page.url);
@@ -432,6 +433,137 @@
           <h3 class="mb-1 text-sm font-semibold text-zinc-300">Filterregeln</h3>
           <p>Diese API ist auf dem LernSax-Server nicht öffentlich erreichbar. Sobald sie verfügbar ist, kommt das Modul automatisch hier rein.</p>
         </div>
+      {:else if tab === "stundenplan"}
+        <h2 class="mb-1 text-xl font-semibold tracking-tight">Stundenplan</h2>
+        <p class="mb-4 text-sm text-zinc-400">
+          OpenSax holt Plan und Vertretungen direkt vom DaVinci-Server deiner Schule.
+          Endpoint und Zugangsdaten bekommst du von der Schule — sie sind dieselben wie in der DaVinci-App.
+        </p>
+
+        <!-- `tab` rides along in the action URL so a submit that isn't enhanced
+             (no JS yet, stale tab) still comes back to this tab instead of
+             dumping the user on Profil with an orphaned error. -->
+        <form method="POST" action="?/saveDavinci&tab=stundenplan" use:enhance class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+          <label class="block">
+            <span class="mb-1 block text-xs text-zinc-400">Endpoint</span>
+            <input
+              name="endpoint"
+              value={data.davinci?.endpoint ?? ""}
+              placeholder="schule.example.de  oder  http://host/daVinciIS.dll"
+              class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-500"
+            />
+            <span class="mt-1 block text-[11px] text-zinc-500">
+              Host oder Adresse des HTML-Vertretungsplans. Ohne Schema wird erst HTTPS, dann HTTP
+              probiert — mit <code>https://</code> oder <code>http://</code> davor bleibt es dabei.
+            </span>
+            {#if data.davinci?.resolvedEndpoint}
+              <span class="mt-1 block text-[11px] text-zinc-500">
+                Erkannt als
+                <span class="text-zinc-400">
+                  {data.davinci.sourceType === "html" ? "HTML-Export" : "InfoServer"}
+                </span>
+                · <code class="text-zinc-400">{data.davinci.resolvedEndpoint}</code>
+              </span>
+            {/if}
+          </label>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="block">
+              <span class="mb-1 block text-xs text-zinc-400">Benutzername</span>
+              <input
+                name="username"
+                value={data.davinci?.username ?? ""}
+                class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-500"
+              />
+              <span class="mt-1 block text-[11px] text-zinc-500">
+                Exakt wie angegeben — Leerzeichen am Ende zählen mit.
+              </span>
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs text-zinc-400">Passwort</span>
+              <input
+                name="password"
+                type="password"
+                autocomplete="off"
+                placeholder={data.davinci?.hasPassword ? "••••••••" : ""}
+                class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-500"
+              />
+              <span class="mt-1 block text-[11px] text-zinc-500">
+                {data.davinci?.hasPassword ? "Leer lassen, um das gespeicherte zu behalten." : "Wird verschlüsselt gespeichert."}
+              </span>
+            </label>
+          </div>
+
+          <fieldset class="border-t border-zinc-800 pt-4">
+            <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Ansicht</legend>
+            <p class="mb-3 text-[11px] text-zinc-500">
+              Leer lassen, wenn dein Zugang schon einer Klasse oder Lehrkraft zugeordnet ist — dann erkennt
+              OpenSax das automatisch.
+            </p>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label class="block">
+                <span class="mb-1 block text-xs text-zinc-400">Klasse</span>
+                <input
+                  name="classCode"
+                  value={data.davinci?.classCode ?? ""}
+                  placeholder="z.B. IT 25/3"
+                  class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs text-zinc-400">Lehrer-Kürzel</span>
+                <input
+                  name="teacherCode"
+                  value={data.davinci?.teacherCode ?? ""}
+                  placeholder="z.B. Loh"
+                  class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                />
+              </label>
+            </div>
+            <label class="mt-3 flex items-center gap-2 text-sm text-zinc-300">
+              <input
+                type="checkbox"
+                name="includeSupervisions"
+                value="1"
+                checked={data.davinci?.includeSupervisions ?? false}
+                class="rounded border-zinc-700 bg-zinc-950"
+              />
+              Aufsichten mit anzeigen
+            </label>
+          </fieldset>
+
+          {#if form?.scope === "davinci" && form?.error}
+            <p class="text-xs text-rose-400">{form.error}</p>
+          {/if}
+          {#if form?.ok && form?.scope === "davinci"}
+            <div class="rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3 text-xs text-emerald-300">
+              <p class="font-medium">Verbunden.</p>
+              <p class="mt-1 text-emerald-300/80">
+                {form.info?.scheduleDescription ?? "Stundenplan"} ·
+                {form.info?.lessonCount ?? 0} Unterrichtsserien ·
+                Profil „{form.info?.profile ?? "?"}"
+                {#if form.info?.identity}· als {form.info.identity}{/if}
+              </p>
+            </div>
+          {/if}
+          {#if form?.ok && form?.scope === "davinci-cleared"}
+            <p class="text-xs text-zinc-400">Verbindung entfernt.</p>
+          {/if}
+
+          <div class="flex justify-end gap-2 pt-1">
+            {#if data.davinci}
+              <button
+                formaction="?/clearDavinci&tab=stundenplan"
+                class="rounded-md border border-zinc-800 px-4 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+              >
+                Entfernen
+              </button>
+            {/if}
+            <button class="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400">
+              Testen &amp; speichern
+            </button>
+          </div>
+        </form>
       {:else if tab === "connections"}
         {@const fmtRel = (ts: number) => {
           const d = Math.floor((Date.now() - ts) / 1000);

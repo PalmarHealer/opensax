@@ -1,12 +1,15 @@
 import { LernSaxClient, type Credentials } from "@lernsax/core";
+import { env } from "$env/dynamic/private";
 import { randomBytes, createCipheriv, createDecipheriv, createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { listForUser, revoke } from "./connectionStore";
 
 const KEY = (() => {
-  const env = process.env.LERNSAX_WEB_SESSION_KEY;
-  if (env && env.length >= 32) return Buffer.from(env.slice(0, 32));
+  // Via `$env/dynamic/private` so `.env` is honoured in dev too; it falls back
+  // to process.env, which is where the container passes it in production.
+  const secret = env.LERNSAX_WEB_SESSION_KEY;
+  if (secret && secret.length >= 32) return Buffer.from(secret.slice(0, 32));
   const generated = randomBytes(32);
   console.warn(
     "[sessionStore] LERNSAX_WEB_SESSION_KEY not set — using ephemeral key. Sessions will not survive restart.",

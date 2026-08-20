@@ -17,6 +17,10 @@ services:
       # Bind to all interfaces by default so a private/VPN IP and 127.0.0.1
       # are both reachable. Override with BIND_HOST in `.env` to lock down.
       - "${BIND_HOST:-0.0.0.0}:3001:3000"
+      # …and on IPv6 loopback as well. Windows resolves "localhost" to ::1
+      # first, and without this every browser request burns a failed IPv6
+      # connect before falling back to IPv4 — ~200ms of dead time each.
+      - "[::1]:3001:3000"
     volumes:
       - lernsax-web-data:/app/data
 

@@ -1,0 +1,237 @@
+/**
+ * Per-account DaVinci configuration and dataset cache.
+ *
+ * The timetable server is a school-specific thing that has nothing to do with
+ * LernSax, so every user brings their own endpoint and credentials. Those are
+ * stored the same way session credentials are: AES-256-GCM on disk, keyed by
+ * the LernSax `user_id` so the config follows the account across devices.
+ *
+ * The dataset itself is cached in memory only. It is one big JSON blob per
+ * school, it changes a few times a day, and re-fetching costs a second — so a
+ * short TTL plus the server's own `eTag` keeps page loads snappy without ever
+ * serving a stale substitution plan for long.
+ */
+import {
+  fetchDaVinci,
+  fetchDaVinciHtml,
+  type DaVinciEntry,
+  type DaVinciPayload,
+  type DaVinciSourceKind,
+} from "@lernsax/core";
+import { env } from "$env/dynamic/private";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+// `$env/dynamic/private` — not `process.env` — because Vite only surfaces
+// `.env` files through it in dev. Reading process.env directly would silently
+// fall through to a random key, and since Vite re-evaluates this module on
+// every edit, each reload would orphan whatever the user just saved.
+const KEY = (() => {
+  const secret = env.LERNSAX_WEB_SESSION_KEY;
+  if (secret && secret.length >= 32) return Buffer.from(secret.slice(0, 32));
+  console.warn(
+    "[davinciStore] LERNSAX_WEB_SESSION_KEY not set — using ephemeral key. Saved timetable logins will not survive a restart.",
+  );
+  return randomBytes(32);
+})();
+
+const STORE_DIR = env.LERNSAX_DAVINCI_DIR
+  ?? (process.env.NODE_ENV === "production" ? "/app/data/davinci" : "./.session-store/davinci");
+
+export interface DaVinciConfig {
+  /** Exactly what the user typed. Shown back to them unchanged. */
+  endpoint: string;
+  /**
+   * The URL that actually answered when the connection was tested, and which
+   * kind of publication it turned out to be. Determined once at save time so
+   * no page load has to re-probe — an unnecessary https attempt against an
+   * http-only server costs a full connect timeout.
+   */
+  resolvedEndpoint?: string;
+  sourceType?: DaVinciSourceKind;
+  username: string;
+  password: string;
+  /**
+   * Which plan to show by default. Empty means "whatever the server says we
+   * are" — set explicitly when the login isn't tied to one class.
+   */
+  classCode?: string;
+  teacherCode?: string;
+  /** Teachers care about supervision duties; students don't. */
+  includeSupervisions?: boolean;
+}
+
+/** Config minus the password — safe to hand to the browser. */
+export type DaVinciConfigPublic = Omit<DaVinciConfig, "password"> & { hasPassword: boolean };
+
+interface DiskRecord {
+  iv: string;
+  tag: string;
+  enc: string;
+  updatedAt: number;
+}
+
+function ensureDir(): void {
+  if (!existsSync(STORE_DIR)) mkdirSync(STORE_DIR, { recursive: true });
+}
+function pathFor(user_id: string): string {
+  return join(STORE_DIR, `${user_id.replace(/[^a-zA-Z0-9_-]/g, "")}.json`);
+}
+
+export function saveConfig(user_id: string, cfg: DaVinciConfig): void {
+  ensureDir();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", KEY, iv);
+  const enc = Buffer.concat([cipher.update(JSON.stringify(cfg), "utf8"), cipher.final()]);
+  const rec: DiskRecord = {
+    iv: iv.toString("hex"),
+    tag: cipher.getAuthTag().toString("hex"),
+    enc: enc.toString("hex"),
+    updatedAt: Date.now(),
+  };
+  writeFileSync(pathFor(user_id), JSON.stringify(rec), { mode: 0o600 });
+  cache.delete(user_id);
+  htmlCache.delete(user_id);
+}
+
+export function loadConfig(user_id: string): DaVinciConfig | null {
+  try {
+    const raw = readFileSync(pathFor(user_id), "utf8");
+    const rec = JSON.parse(raw) as DiskRecord;
+    const decipher = createDecipheriv("aes-256-gcm", KEY, Buffer.from(rec.iv, "hex"));
+    decipher.setAuthTag(Buffer.from(rec.tag, "hex"));
+    const out = Buffer.concat([decipher.update(Buffer.from(rec.enc, "hex")), decipher.final()]);
+    return JSON.parse(out.toString("utf8")) as DaVinciConfig;
+  } catch {
+    // Missing file, or a key rotation made the ciphertext unreadable. Either
+    // way the user has to re-enter the config; there is nothing to recover.
+    return null;
+  }
+}
+
+export function clearConfig(user_id: string): void {
+  try { unlinkSync(pathFor(user_id)); } catch { /* nothing stored */ }
+  cache.delete(user_id);
+  htmlCache.delete(user_id);
+}
+
+export function publicConfig(cfg: DaVinciConfig | null): DaVinciConfigPublic | null {
+  if (!cfg) return null;
+  const { password, ...rest } = cfg;
+  return { ...rest, hasPassword: !!password };
+}
+
+// ── Dataset cache ──────────────────────────────────────────────────────
+
+interface CacheEntry {
+  /** Hash of the config, so changing the endpoint invalidates the entry. */
+  signature: string;
+  payload: DaVinciPayload;
+  etag?: string;
+  fetchedAt: number;
+}
+
+/** Parsed HTML export, cached whole — these publications span a few days. */
+interface HtmlCacheEntry {
+  signature: string;
+  entries: DaVinciEntry[];
+  notes: Record<string, string>;
+  generatedAt?: string;
+  fetchedAt: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+const htmlCache = new Map<string, HtmlCacheEntry>();
+
+/** The URL to actually call: the probed one, falling back to what was typed. */
+function endpointOf(cfg: DaVinciConfig): string {
+  return cfg.resolvedEndpoint || cfg.endpoint;
+}
+const TTL_MS = 5 * 60 * 1000;
+
+function signatureOf(cfg: DaVinciConfig): string {
+  return createHash("sha256")
+    .update(`${cfg.endpoint} ${cfg.resolvedEndpoint ?? ""} ${cfg.username} ${cfg.password}`)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+/**
+ * Fetch the dataset, honouring the in-memory cache.
+ *
+ * Within the TTL the cached payload is returned untouched. After that we ask
+ * the server again, passing the last `eTag` — if it reports "unchanged" we keep
+ * what we have and just reset the clock.
+ */
+export async function getPayload(
+  user_id: string,
+  cfg: DaVinciConfig,
+  opts: { force?: boolean } = {},
+): Promise<{ payload: DaVinciPayload; fetchedAt: number; cached: boolean }> {
+  const signature = signatureOf(cfg);
+  const hit = cache.get(user_id);
+  const fresh = hit && hit.signature === signature && Date.now() - hit.fetchedAt < TTL_MS;
+  if (fresh && !opts.force) {
+    return { payload: hit.payload, fetchedAt: hit.fetchedAt, cached: true };
+  }
+
+  const reusable = hit && hit.signature === signature ? hit : undefined;
+  const res = await fetchDaVinci({
+    endpoint: endpointOf(cfg),
+    username: cfg.username || undefined,
+    password: cfg.password || undefined,
+    etag: reusable?.etag,
+  });
+
+  if (!res.payload && reusable) {
+    // Unchanged — keep the payload we already have, but stop asking for a while.
+    reusable.fetchedAt = Date.now();
+    return { payload: reusable.payload, fetchedAt: reusable.fetchedAt, cached: true };
+  }
+  if (!res.payload) throw new Error("DaVinci-Server lieferte keine Daten");
+
+  const entry: CacheEntry = {
+    signature,
+    payload: res.payload,
+    etag: res.etag,
+    fetchedAt: Date.now(),
+  };
+  cache.set(user_id, entry);
+  return { payload: entry.payload, fetchedAt: entry.fetchedAt, cached: false };
+}
+
+/**
+ * Fetch a published HTML export, honouring the same TTL.
+ *
+ * The whole export is cached rather than a slice of it: these publications
+ * cover a handful of days, and the alternative — one cache entry per week on
+ * screen — would re-download the index every time the user steps a week.
+ */
+export async function getHtml(
+  user_id: string,
+  cfg: DaVinciConfig,
+  opts: { force?: boolean } = {},
+): Promise<{ entries: DaVinciEntry[]; notes: Record<string, string>; generatedAt?: string; fetchedAt: number; cached: boolean }> {
+  const signature = signatureOf(cfg);
+  const hit = htmlCache.get(user_id);
+  if (hit && hit.signature === signature && Date.now() - hit.fetchedAt < TTL_MS && !opts.force) {
+    return { entries: hit.entries, notes: hit.notes, generatedAt: hit.generatedAt, fetchedAt: hit.fetchedAt, cached: true };
+  }
+
+  const res = await fetchDaVinciHtml({ endpoint: endpointOf(cfg) });
+  const entry: HtmlCacheEntry = {
+    signature,
+    entries: res.entries,
+    notes: res.notes,
+    generatedAt: res.generatedAt,
+    fetchedAt: Date.now(),
+  };
+  htmlCache.set(user_id, entry);
+  return { entries: entry.entries, notes: entry.notes, generatedAt: entry.generatedAt, fetchedAt: entry.fetchedAt, cached: false };
+}
+
+export function invalidate(user_id: string): void {
+  cache.delete(user_id);
+  htmlCache.delete(user_id);
+}
