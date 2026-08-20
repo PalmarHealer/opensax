@@ -41,7 +41,46 @@ html.light .bg-red-500\/10 { background-color: rgb(239 68 68 / 0.12); }
 html.light .bg-red-500\/20 { background-color: rgb(239 68 68 / 0.22); }
 html.light .hover\:bg-red-500\/10:hover { background-color: rgb(239 68 68 / 0.15); }
 html.light .hover\:bg-red-500\/20:hover { background-color: rgb(239 68 68 / 0.25); }
+html.light .bg-zinc-950\/40 { background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1)); }
 html.light .divide-zinc-900 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(228 228 231 / 1); }
+
+/* Status colours (timetable changes, connection results). The -300 shades read
+   fine on near-black but wash out to nothing on a light background, and the
+   /5–/15 tints disappear entirely. Darken the text, strengthen the tint. */
+html.light .text-rose-300,    html.light .text-rose-200    { color: rgb(159 18 57); }
+html.light .text-amber-300                                 { color: rgb(146 64 14); }
+html.light .text-sky-300                                   { color: rgb(7 89 133); }
+html.light .text-emerald-300                               { color: rgb(6 95 70); }
+html.light .text-violet-300                                { color: rgb(91 33 182); }
+html.light .text-indigo-300                                { color: rgb(67 56 202); }
+
+html.light .bg-rose-500\/15    { background-color: rgb(244 63 94 / 0.16); }
+html.light .bg-amber-500\/15   { background-color: rgb(245 158 11 / 0.22); }
+html.light .bg-sky-500\/15     { background-color: rgb(14 165 233 / 0.16); }
+html.light .bg-emerald-500\/15 { background-color: rgb(16 185 129 / 0.18); }
+html.light .bg-violet-500\/15  { background-color: rgb(139 92 246 / 0.16); }
+
+html.light .bg-rose-500\/5    { background-color: rgb(244 63 94 / 0.07); }
+html.light .bg-amber-500\/5   { background-color: rgb(245 158 11 / 0.10); }
+html.light .bg-sky-500\/5     { background-color: rgb(14 165 233 / 0.07); }
+html.light .bg-emerald-500\/5 { background-color: rgb(16 185 129 / 0.08); }
+html.light .bg-violet-500\/5  { background-color: rgb(139 92 246 / 0.07); }
+html.light .bg-indigo-500\/5  { background-color: rgb(99 102 241 / 0.08); }
+
+html.light .border-rose-500\/40    { border-color: rgb(244 63 94 / 0.55); }
+html.light .border-amber-500\/40   { border-color: rgb(217 119 6 / 0.55); }
+html.light .border-sky-500\/40     { border-color: rgb(14 165 233 / 0.55); }
+html.light .border-emerald-500\/40 { border-color: rgb(16 185 129 / 0.55); }
+html.light .border-violet-500\/40  { border-color: rgb(139 92 246 / 0.55); }
+html.light .border-indigo-500\/60  { border-color: rgb(99 102 241 / 0.7); }
+
+/* Result panels after a connection test. */
+html.light .border-emerald-900\/60 { border-color: rgb(16 185 129 / 0.5); }
+html.light .bg-emerald-950\/20     { background-color: rgb(16 185 129 / 0.10); }
+html.light .border-rose-900\/60    { border-color: rgb(244 63 94 / 0.5); }
+html.light .bg-rose-950\/20        { background-color: rgb(244 63 94 / 0.08); }
+html.light .text-rose-400          { color: rgb(159 18 57); }
+html.light .text-emerald-400       { color: rgb(6 95 70); }
 html.light .hover\:bg-zinc-900:hover, html.light .hover\:bg-zinc-900\/60:hover, html.light .hover\:bg-zinc-900\/50:hover, html.light .hover\:bg-zinc-900\/40:hover { background-color: rgb(244 244 245); }
 html.light .hover\:bg-zinc-800:hover, html.light .hover\:bg-zinc-800\/60:hover { background-color: rgb(228 228 231); }
 html.light .hover\:text-zinc-100:hover, html.light .hover\:text-zinc-200:hover { color: rgb(24 24 27); }
