@@ -10,7 +10,16 @@ COPY tinyproxy.conf /etc/tinyproxy/tinyproxy.conf.template
 COPY filter         /etc/tinyproxy/filter
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+# Strip CR from everything copied in. A checkout on Windows turns the shebang
+# into `#!/bin/sh\r`, and the kernel then looks for an interpreter that doesn't
+# exist — the container dies with "no such file or directory" pointing at a
+# script that is plainly there. tinyproxy is just as unforgiving and rejects
+# its own config with a syntax error.
+RUN sed -i 's/\r$//' \
+      /usr/local/bin/docker-entrypoint.sh \
+      /etc/tinyproxy/tinyproxy.conf.template \
+      /etc/tinyproxy/filter \
+ && chmod +x /usr/local/bin/docker-entrypoint.sh \
  && mkdir -p /run/tinyproxy \
  && chown tinyproxy:tinyproxy /run/tinyproxy
 
