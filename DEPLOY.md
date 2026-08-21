@@ -30,6 +30,7 @@ So a typical deployment uses two public hostnames:
    ONLYOFFICE_PUBLIC_URL=https://<office>.example.com
    BIND_HOST=0.0.0.0                              # or a private IP if you only
                                                   # want the proxy to reach it
+   LERNSAX_PROXY_URL=                             # optional, see "German egress"
    ```
 
 2. `docker compose up -d --build`
@@ -37,6 +38,22 @@ So a typical deployment uses two public hostnames:
 3. First run pulls OnlyOffice (~1.5 GB). You can pre-pull with `docker compose pull onlyoffice`.
 
 By default the compose file binds container ports to `BIND_HOST` so you can keep the host's public interface clean and only expose via the reverse proxy.
+
+## German egress (optional)
+
+LernSax refuses or degrades requests that don't arrive from a German IP, so a
+deployment hosted elsewhere needs its LernSax-bound traffic relayed. Setting
+`LERNSAX_PROXY_URL` points `lernsax-web` and `lernsax-mcp` at an HTTP `CONNECT`
+proxy on a German node; the proxy tunnels the TLS without terminating it, so
+LernSax sees that node's address:
+
+```
+LERNSAX_PROXY_URL=http://100.x.y.z:8888   # the relay's Tailscale IP
+```
+
+Only LernSax egress is relayed — OnlyOffice, image pulls and everything else
+still leave directly. Leave it unset to talk to LernSax straight from the
+deployment. `deploy/relay` has the relay itself and its setup.
 
 ## Reverse proxy
 
@@ -75,6 +92,37 @@ server {
 ```
 
 Make sure TLS, HTTP/2 and websockets are on.
+
+#### If the proxy addresses the containers by name
+
+The snippet above points at `<docker-host>:<published port>`, which is a fixed
+address and needs nothing special. Many setups instead put the proxy on the
+same Docker network and route to the container names (`lernsax-web:3000`,
+`lernsax-mcp:8765`) — Nginx Proxy Manager does this by default. Then one detail
+matters:
+
+**nginx resolves a literal `proxy_pass http://name:port;` once, when it loads
+the config.** Redeploying the stack gives the containers new IPs, and nginx
+keeps sending to the old ones — every request to that location answers **502**
+until nginx is reloaded. The failure looks like the app is down when it is
+perfectly healthy; from inside the network the container answers fine.
+
+Resolve per request instead:
+
+```nginx
+location /mcp {
+  resolver 127.0.0.11 valid=10s ipv6=off;   # Docker's embedded DNS
+  set $mcp_upstream http://lernsax-mcp:8765;
+  proxy_pass $mcp_upstream;
+  # …headers as above
+}
+```
+
+An upstream in a variable makes nginx look the name up at request time and
+honour the TTL. Nginx Proxy Manager already generates its own forward host this
+way (`set $server …; proxy_pass $forward_scheme://$server:$port;`) — which is
+why a hand-written extra location can break on a redeploy while the main site
+keeps working. Anything you add by hand needs the same treatment.
 
 ### `<office>.example.com`
 

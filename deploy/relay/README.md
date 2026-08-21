@@ -67,6 +67,35 @@ relay. Leaving it unset logs a warning and falls back to "anything that can
 reach the listening address" — which is still tailnet-only, but drops the
 second layer.
 
+#### When the node can't build
+
+Building on the node isn't always possible. Portainer, for one, proxies the
+BuildKit gRPC session over HTTP and mangles it, so a stack that builds fails on
+a remote endpoint with:
+
+```
+failed to deploy a stack: compose build operation failed: listing workers for
+Build: failed to list workers: Unavailable: connection error: desc = "error
+reading server preface: http2: failed reading the frame payload: http2: frame
+too large, note that the frame header looked like an HTTP/1.1 header"
+```
+
+Build it somewhere that can and ship the image over — it's ~4 MB:
+
+```sh
+docker build -t opensax-relay:latest deploy/relay
+docker save opensax-relay:latest | ssh <node> docker load
+```
+
+Then deploy `docker-compose.image.yml` instead of `docker-compose.yml`. It is
+the same service without the `build:` stanza; policy, filter and the
+Listen/Allow rendering all live in the image. `RELAY_IMAGE` overrides the tag
+if you push to a registry instead.
+
+Without a registry, remember that a rebuilt image doesn't reach the node by
+itself — `docker save`/`load` again, and recreate the container (a plain
+restart keeps the old image).
+
 ### On the host
 
 ```sh
