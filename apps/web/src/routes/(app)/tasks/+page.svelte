@@ -2,8 +2,17 @@
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
+  import { sanitizeHtml } from "$lib/linkify";
 
   let { data } = $props();
+
+  // Descriptions come back as HTML with hard line breaks (`\r\n`), which the
+  // browser would collapse. Turn them into <br> first, then sanitize — the
+  // teacher-authored markup (<b>, <u>, lists) survives, everything else goes.
+  const descriptionHtml = (d: string) => sanitizeHtml(d.replace(/\r\n|\r|\n/g, "<br>"));
+
+  let expanded = $state<Record<string, boolean>>({});
+  const toggleDescription = (id: string) => { expanded[id] = !expanded[id]; };
   const groupValue = $derived(data.group ?? "");
 
   const groups = $derived((page.data.groups as Array<{ login: string; effective_rights?: string[]; member_rights?: string[] }>) ?? []);
@@ -55,7 +64,9 @@
 
       <ul class="space-y-1">
         {#each data.tasks as t}
-          <li class="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2">
+          {@const hasDescription = !!t.description?.trim()}
+          <li class="rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2">
+          <div class="flex items-center gap-3">
             <form method="POST" action="?/toggle" use:enhance class="flex">
               <input type="hidden" name="id" value={t.id} />
               <input type="hidden" name="completed" value={(!t.completed).toString()} />
@@ -75,6 +86,18 @@
               <p class="truncate text-sm {t.completed ? 'text-zinc-500 line-through' : 'text-zinc-100'}">{t.title}</p>
               {#if t.due_date}<p class="text-xs text-zinc-500">fällig {fmt(t.due_date)}</p>{/if}
             </div>
+            {#if hasDescription}
+              <button
+                type="button"
+                class="shrink-0 rounded p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+                onclick={() => toggleDescription(t.id)}
+                aria-expanded={!!expanded[t.id]}
+                aria-label={expanded[t.id] ? "Beschreibung ausblenden" : "Beschreibung anzeigen"}
+                title="Beschreibung"
+              >
+                <Icon name="chevron-down" size={16} class={expanded[t.id] ? "rotate-180 transition-transform" : "transition-transform"} />
+              </button>
+            {/if}
             {#if canWrite}
               <form method="POST" action="?/remove" use:enhance>
                 <input type="hidden" name="id" value={t.id} />
@@ -84,6 +107,13 @@
                 </button>
               </form>
             {/if}
+          </div>
+
+          {#if hasDescription && expanded[t.id]}
+            <div class="prose prose-invert prose-sm mt-2 max-w-none break-words border-t border-zinc-800 pt-2 text-sm leading-relaxed text-zinc-300">
+              {@html descriptionHtml(t.description ?? "")}
+            </div>
+          {/if}
           </li>
         {:else}
           <li class="rounded-lg border border-dashed border-zinc-800 px-6 py-12 text-center text-sm text-zinc-500">
