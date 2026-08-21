@@ -13,6 +13,12 @@
 
   let expanded = $state<Record<string, boolean>>({});
   const toggleDescription = (id: string) => { expanded[id] = !expanded[id]; };
+
+  // Tasks posted in a class that aren't assigned to you are noise by default —
+  // LernSax's own view starts on "Nur meine Aufgaben" too. The eye reveals them.
+  let showUnassigned = $state(false);
+  const unassignedCount = $derived(data.tasks.filter((t) => !t.assigned).length);
+  const visibleTasks = $derived(showUnassigned ? data.tasks : data.tasks.filter((t) => t.assigned));
   const groupValue = $derived(data.group ?? "");
 
   const groups = $derived((page.data.groups as Array<{ login: string; effective_rights?: string[]; member_rights?: string[] }>) ?? []);
@@ -62,8 +68,28 @@
         </form>
       {/if}
 
+      {#if unassignedCount > 0}
+        <div class="mb-2 flex items-center gap-2 text-xs text-zinc-500">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-800 px-2 py-1 transition hover:bg-zinc-800 hover:text-zinc-200
+              {showUnassigned ? 'text-zinc-300' : ''}"
+            onclick={() => (showUnassigned = !showUnassigned)}
+            aria-pressed={showUnassigned}
+          >
+            <Icon name={showUnassigned ? "eye" : "eye-off"} size={14} />
+            Nicht zugewiesene
+          </button>
+          <span>
+            {unassignedCount}
+            {unassignedCount === 1 ? "Aufgabe ist" : "Aufgaben sind"} dieser Klasse zugeordnet, aber nicht dir
+            {showUnassigned ? "" : " — ausgeblendet"}
+          </span>
+        </div>
+      {/if}
+
       <ul class="space-y-1">
-        {#each data.tasks as t}
+        {#each visibleTasks as t}
           {@const hasDescription = !!t.description?.trim()}
           <li class="rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2">
           <div class="flex items-center gap-3">
@@ -83,7 +109,12 @@
               </button>
             </form>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm {t.completed ? 'text-zinc-500 line-through' : 'text-zinc-100'}">{t.title}</p>
+              <div class="flex items-baseline gap-2">
+                <p class="truncate text-sm {t.completed ? 'text-zinc-500 line-through' : 'text-zinc-100'}">{t.title}</p>
+                {#if !t.assigned}
+                  <span class="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">nicht zugewiesen</span>
+                {/if}
+              </div>
               {#if t.due_date}<p class="text-xs text-zinc-500">fällig {fmt(t.due_date)}</p>{/if}
             </div>
             {#if hasDescription}

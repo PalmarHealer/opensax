@@ -49,7 +49,7 @@ LERNSAX_WEB_SESSION_KEY=<32+ char secret>
 |---|---|
 | **Übersicht** | Begrüßung, anstehende Termine (über alle Gruppen), ungelesene Mails, offene Aufgaben, System-Notifications |
 | **Mail** | Folder-Rail + Liste + Detail in 3 Spalten · Bulk-Select mit Checkboxen, Bulk-Delete, Bulk-Mark-Read · Antworten / Allen / Weiterleiten / Löschen · Compose als minimierbares Floating-Window · Anhänge mit Server-Proxy & forced-Save · Auto-Linkify im Plaintext, sanitized HTML · Folder-CRUD mit Vorhaltezeit · Signatur-Editor in Settings |
-| **Aufgaben** | CRUD mit Fälligkeitsdatum, gated by `tasks_write`-Right pro Gruppe |
+| **Aufgaben** | CRUD mit Fälligkeitsdatum, gated by `tasks_write`-Right pro Gruppe · **Beschreibung** aufklappbar (sanitized HTML) · Aufgaben der Klasse, die nicht dir zugewiesen sind, sind ausgeblendet und per Auge einblendbar (`nicht zugewiesen`-Badge) — im Dashboard tauchen sie nie auf |
 | **Kalender** | Monatsansicht mit Wochenraster (Mo–So), Ferien aus `get_superiors` als Badges, Multi-Day-Events fanen aus, Termine erstellen via Tag-Klick |
 | **Mitteilungen** | Pro Gruppe + Kind-Switch (Allgemein/Lehrer/Schüler), HTML-Render mit Sanitize, 8 LernSax-Farben als Akzent-Streifen, Author + Datum |
 | **Notizen** | Kartengrid mit 6 Farben, Inline-Edit |

@@ -37,7 +37,19 @@ export const load: PageServerLoad = async ({ locals }) => {
         .catch(() => []),
     ),
   );
-  const allTasks = [...personalTasks.map((t) => ({ ...t, _group: "Persönlich" })), ...groupTasks.flat()];
+  // A group list holds every task in the room, including ones assigned to other
+  // people — those don't belong on a personal dashboard. An assigned task also
+  // appears in the caller's personal list, so that list is the filter.
+  //
+  // It's the deduplication key too: without it, a group task assigned to me
+  // showed up twice, once as "Persönlich" and once under its group.
+  const assignedIds = new Set(personalTasks.map((t) => String(t.id)));
+  const mine = groupTasks.flat().filter((t) => assignedIds.has(String(t.id)));
+  const seen = new Set(mine.map((t) => String(t.id)));
+  const allTasks = [
+    ...mine,
+    ...personalTasks.filter((t) => !seen.has(String(t.id))).map((t) => ({ ...t, _group: "Persönlich" })),
+  ];
   const openTasks = allTasks
     .filter((t) => !t.completed)
     .sort((a, b) => (a.due_date ?? Infinity) - (b.due_date ?? Infinity))
