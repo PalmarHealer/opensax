@@ -1,5 +1,6 @@
 import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
+import { lernsaxFetch } from "$lib/server/lernsaxFetch";
 
 export const GET: RequestHandler = async ({ locals, url }) => {
   const c = locals.client!;
@@ -14,10 +15,14 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
   // LernSax occasionally returns download URLs with literal `%` in the path
   // (unencoded filenames), which trips SvelteKit's fetch wrapper
-  // (decodeURIComponent → URIError). Normalize stray `%` → `%25` and use the
-  // global fetch to bypass the wrapper.
+  // (decodeURIComponent → URIError). Normalize stray `%` → `%25` and bypass
+  // the wrapper.
+  //
+  // Goes through `lernsaxFetch`, not the global one: the URL carries a
+  // session-scoped token, so it has to leave through the same egress that
+  // minted the session (these URLs live on `d.lernsax.de`).
   const safeUrl = new URL(info.download_url.replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).toString();
-  const upstream = await globalThis.fetch(safeUrl);
+  const upstream = await lernsaxFetch(safeUrl);
   if (!upstream.ok) throw error(upstream.status, "upstream failed");
 
   const out = new Headers();

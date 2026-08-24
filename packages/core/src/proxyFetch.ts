@@ -31,8 +31,28 @@ let cached: { url: string; agent: ProxyAgent; fetch: typeof fetch } | null = nul
 export function createProxyFetch(proxyUrl: string): { fetch: typeof fetch; agent: ProxyAgent } {
   const agent = new ProxyAgent(proxyUrl);
   const fetchImpl = ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
-    fetch(input, { ...init, dispatcher: agent } as RequestInit)) as typeof fetch;
+    fetch(input, { ...init, dispatcher: agent } as RequestInit).catch((err) => {
+      throw describeRelayError(err, input, proxyUrl);
+    })) as typeof fetch;
   return { fetch: fetchImpl, agent };
+}
+
+/**
+ * A relay that refuses a host answers the CONNECT with 403 and undici collapses
+ * that into a bare `TypeError: fetch failed` — which reads like the deployment
+ * has no network at all. Name the host and the relay instead: the fix is almost
+ * always a missing entry in the relay's domain filter.
+ */
+function describeRelayError(err: unknown, input: Parameters<typeof fetch>[0], proxyUrl: string): unknown {
+  if (!(err instanceof TypeError)) return err;
+  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const host = (() => { try { return new URL(raw).host; } catch { return raw; } })();
+  const cause = (err as { cause?: { message?: string } }).cause?.message;
+  const refused = cause?.includes("HTTP Tunneling") || cause?.includes("Proxy response");
+  const detail = refused
+    ? `der Relay ${proxyUrl} hat den CONNECT abgelehnt — steht ${host} im Domain-Filter?`
+    : `Verbindung über den Relay ${proxyUrl} fehlgeschlagen${cause ? ` (${cause})` : ""}`;
+  return new Error(`${host}: ${detail}`, { cause: err });
 }
 
 /**

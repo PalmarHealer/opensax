@@ -1,4 +1,13 @@
 # tinyproxy domain filter — only LernSax may be reached through this relay.
 # Referenced by `Filter` in tinyproxy.conf with FilterDefaultDeny Yes.
-^www\.lernsax\.de$
+#
+# LernSax is not just `www`: file and mail-attachment download URLs handed out
+# by the JSON-RPC API point at `d.lernsax.de`. Matching the apex plus any
+# subdomain covers both, and any further host WebWeaver decides to hand out.
+# The leading `\.` matters — `lernsax\.de$` alone would also match
+# `notlernsax.de`.
+#
+# Basic POSIX regexes (tinyproxy's default — FilterExtended is off), so no
+# groups or alternation here.
 ^lernsax\.de$
+\.lernsax\.de$

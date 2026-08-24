@@ -116,9 +116,12 @@ sudo systemctl restart tinyproxy
 Notes:
 - `Listen` binds to the tailnet interface only — the proxy is never exposed to
   the public internet.
-- `FilterDefaultDeny Yes` + `filter` mean only `www.lernsax.de` can be reached;
-  `ConnectPort 443` limits it to HTTPS. It is not a general-purpose open proxy.
-  A request for any other host gets `403 Filtered`.
+- `FilterDefaultDeny Yes` + `filter` mean only `lernsax.de` and its subdomains
+  can be reached; `ConnectPort 443` limits it to HTTPS. It is not a
+  general-purpose open proxy. A request for any other host gets `403 Filtered`.
+  Note that LernSax is not just `www`: the JSON-RPC API hands out file and
+  mail-attachment download URLs on `d.lernsax.de`, so the filter has to cover
+  the whole zone — see "Troubleshooting".
 
 ## 2. Vienna deployment
 
@@ -160,3 +163,29 @@ sudo journalctl -u tinyproxy -f # host install
 
 To disable the relay, unset `LERNSAX_PROXY_URL` and redeploy — the app falls
 back to talking to LernSax directly.
+
+## Troubleshooting
+
+### Login works, everything else 500s with `TypeError: fetch failed`
+
+A host the app needs isn't in the relay's filter. Logging in only talks to
+`www.lernsax.de`, so it succeeds while file previews, downloads and mail
+attachments — which LernSax serves from `d.lernsax.de` — die. tinyproxy answers
+the `CONNECT` with `403 Filtered`, undici's `ProxyAgent` turns a failed tunnel
+into a bare `TypeError: fetch failed`, and the route reports a 500.
+
+The relay log names the host outright:
+
+```
+CONNECT  Request (file descriptor 4): CONNECT d.lernsax.de:443 HTTP/1.1
+NOTICE   Proxying refused on filtered domain "d.lernsax.de"
+```
+
+Add the host to `filter` and redeploy the relay. Because the filter is baked
+into the image, a rebuilt image has to reach the node — `docker save`/`load`
+again and **recreate** the container; a plain restart keeps the old image.
+
+### `Unauthorized connection from "<ip>"` every 30s
+
+That's a health check or monitor hitting the port from an address that isn't in
+`RELAY_ALLOW`. Harmless noise as long as the address is one you recognize.
