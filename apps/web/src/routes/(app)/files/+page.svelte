@@ -126,6 +126,41 @@
     goto(u.pathname + u.search);
   }
 
+  // ── Breadcrumb level switcher ───────────────────────────────────────────
+  // Each separator opens what sits on the level of the crumb behind it, so a
+  // sideways move costs one click instead of walking back up and down again.
+  //
+  // Positioned fixed and anchored to the chevron, like the row context menu:
+  // the breadcrumb strip scrolls horizontally, and `overflow-x: auto` clips
+  // overflow on *both* axes, so an absolutely positioned menu inside it would
+  // be cut off at the header's bottom edge.
+  let levelMenu = $state<{ items: { id: string; name: string; file?: boolean }[]; currentId: string; x: number; y: number } | null>(null);
+
+  function openLevelMenu(ev: MouseEvent, items: { id: string; name: string; file?: boolean }[], currentId: string) {
+    if (items.length === 0) return;
+    const rect = (ev.currentTarget as Element).getBoundingClientRect();
+    levelMenu = { items, currentId, x: rect.left, y: rect.bottom + 4 };
+  }
+  $effect(() => {
+    if (!levelMenu) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = document.getElementById("files-level-menu");
+      if (!el || !el.contains(e.target as Node)) levelMenu = null;
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") levelMenu = null; };
+    document.addEventListener("mousedown", onDoc, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  });
+
+  /** Files next to the one that's open, so the last separator switches documents. */
+  const fileSiblings = $derived(
+    data.children.filter((e) => e.type === "file").map((e) => ({ id: e.id, name: e.name, file: true })),
+  );
+
   const groupValue = $derived(data.group ?? "");
 
   function rowCanModify(e: { effective?: { modify?: number; delete?: number } }): boolean {
@@ -223,7 +258,26 @@
       </button>
       {#each data.breadcrumb as b, i}
         {#if b.id !== "/"}
-          <Icon name="chevron-right" size={14} class="text-zinc-600" />
+          {@const level = data.siblings[i] ?? []}
+          <button
+            type="button"
+            class="grid h-7 w-7 shrink-0 place-items-center rounded-md transition
+              {levelMenu && levelMenu.currentId === b.id
+                ? 'bg-zinc-800 text-zinc-100'
+                : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-200'}
+              disabled:text-zinc-700 disabled:hover:bg-transparent"
+            disabled={level.length < 2}
+            aria-haspopup="menu"
+            aria-expanded={!!levelMenu && levelMenu.currentId === b.id}
+            aria-label="Andere Ordner auf dieser Ebene"
+            title={level.length < 2 ? undefined : "Ordner auf dieser Ebene"}
+            onclick={(ev) => openLevelMenu(ev, level, b.id)}
+          >
+            <Icon
+              name={levelMenu && levelMenu.currentId === b.id ? "chevron-down" : "chevron-right"}
+              size={16}
+            />
+          </button>
           <button
             class="truncate rounded-md px-2 py-1 text-sm hover:bg-zinc-900 {!data.file && i === data.breadcrumb.length - 1 ? 'font-medium text-zinc-100' : 'text-zinc-400 hover:text-zinc-100'}"
             onclick={() => navTo(b.id)}
@@ -232,7 +286,25 @@
         {/if}
       {/each}
       {#if data.file}
-        <Icon name="chevron-right" size={14} class="text-zinc-600" />
+        <button
+          type="button"
+          class="grid h-7 w-7 shrink-0 place-items-center rounded-md transition
+            {levelMenu && levelMenu.currentId === data.file.id
+              ? 'bg-zinc-800 text-zinc-100'
+              : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-200'}
+            disabled:text-zinc-700 disabled:hover:bg-transparent"
+          disabled={fileSiblings.length < 2}
+          aria-haspopup="menu"
+          aria-expanded={!!levelMenu && levelMenu.currentId === data.file.id}
+          aria-label="Andere Dateien in diesem Ordner"
+          title={fileSiblings.length < 2 ? undefined : "Dateien in diesem Ordner"}
+          onclick={(ev) => openLevelMenu(ev, fileSiblings, data.file!.id)}
+        >
+          <Icon
+            name={levelMenu && levelMenu.currentId === data.file.id ? "chevron-down" : "chevron-right"}
+            size={16}
+          />
+        </button>
         <span class="flex items-center gap-1 truncate rounded-md px-2 py-1 text-sm font-medium text-zinc-100" title={data.file.name}>
           <Icon name="file" size={14} />
           {data.file.name}
@@ -447,6 +519,46 @@
     {/if}
   </section>
 </div>
+
+{#if levelMenu}
+  {@const lm = levelMenu}
+  <div
+    id="files-level-menu"
+    role="menu"
+    style="position: fixed; left: {Math.min(lm.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 256)}px; top: {lm.y}px;"
+    class="z-50 max-h-80 w-64 space-y-0.5 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 p-1.5 shadow-2xl"
+  >
+    {#each lm.items as item (item.id)}
+      {@const current = item.id === lm.currentId}
+      <button
+        type="button"
+        class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm
+          {current
+            ? 'cursor-default bg-indigo-500/10 font-medium text-indigo-200'
+            : 'text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'}"
+        onclick={() => {
+          // Navigate first, close second. `lm` (and everything derived from it,
+          // `item` and `current` included) is a *derived*, not a snapshot —
+          // clearing `levelMenu` up front re-evaluates it to null, and the next
+          // read throws before the navigation ever happens.
+          if (!current) {
+            if (item.file) navToFile(item.id, data.folderId);
+            else navTo(item.id);
+          }
+          levelMenu = null;
+        }}
+      >
+        <Icon name={item.file ? "file" : "folder"} size={16} />
+        <span class="min-w-0 flex-1 truncate">{item.name}</span>
+        <!-- Ohne diese Marke sieht der aktive Eintrag aus wie jeder andere,
+             und sein Klick — der absichtlich nichts tut — wie ein Defekt. -->
+        {#if current}
+          <Icon name="check" size={14} />
+        {/if}
+      </button>
+    {/each}
+  </div>
+{/if}
 
 {#if menu}
   {@const e = menu.entry}

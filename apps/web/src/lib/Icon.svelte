@@ -91,6 +91,7 @@
       "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12",
       "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3",
     ],
+    check: ["M5 12l5 5l9 -9"],
     "chevron-left": ["M15 6l-6 6l6 6"],
     "chevron-right": ["M9 6l6 6l-6 6"],
     "chevron-down": ["M6 9l6 6l6 -6"],
