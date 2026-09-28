@@ -46,7 +46,12 @@
     </p>
   </header>
 
-  <div class="grid gap-4 lg:grid-cols-3">
+  <!-- `grid-cols-1` ist nicht kosmetisch: ohne explizite Spalte legt CSS eine
+       implizite `auto`-Spalte an, die auf die min-content-Breite des breitesten
+       Kindes wächst. Ein `truncate` weiter unten (white-space: nowrap) hat damit
+       das ganze Dashboard über den Viewport geschoben. Tailwinds grid-cols-N ist
+       `minmax(0,1fr)` und darf schrumpfen. -->
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
     <!-- Upcoming events -->
     <section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 lg:col-span-2 lg:row-span-2">
       <header class="mb-4 flex items-center justify-between">
@@ -133,7 +138,7 @@
       {#if data.notifications.length === 0}
         <p class="py-4 text-center text-sm text-zinc-500">Nichts Neues.</p>
       {:else}
-        <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {#each data.notifications as n}
             <li class="rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-xs">
               <p class="truncate font-medium text-zinc-200">{n.message_hr ?? n.id}</p>

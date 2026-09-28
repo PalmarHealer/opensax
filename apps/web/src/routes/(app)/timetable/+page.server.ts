@@ -20,6 +20,22 @@ function mondayOf(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Which week to open when none was asked for.
+ *
+ * Am Wochenende ist die laufende Woche vorbei: wer samstags den Plan aufmacht,
+ * will wissen, was Montag ansteht, nicht was Dienstag war. Der Default springt
+ * deshalb auf die kommende Woche — die abgelaufene bleibt über den
+ * Zurück-Pfeil erreichbar.
+ */
+function defaultWeekStart(today: string): string {
+  const d = new Date(`${today}T00:00:00Z`);
+  const dow = d.getUTCDay(); // 0 = Sonntag, 6 = Samstag
+  if (dow === 6) return addDays(today, 2);
+  if (dow === 0) return addDays(today, 1);
+  return mondayOf(today);
+}
+
 function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -112,7 +128,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const cfg = user_id ? loadConfig(user_id) : null;
 
   const today = todayIso();
-  const weekStart = mondayOf(url.searchParams.get("week") || today);
+  const weekParam = url.searchParams.get("week");
+  const weekStart = weekParam ? mondayOf(weekParam) : defaultWeekStart(today);
   const weekEnd = addDays(weekStart, 6);
 
   if (!user_id || !cfg) {

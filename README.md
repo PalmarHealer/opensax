@@ -1,3 +1,7 @@
+Forum und Wiki posten geht nicht (man kann auch keine Notizen erstellen).
+
+Chat geht nicht (returned 500 Server error)
+
 # OpenSax
 
 Modernes Webinterface + lokaler MCP-Server für die LernSax/WebWeaver-API.
@@ -54,8 +58,8 @@ LERNSAX_WEB_SESSION_KEY=<32+ char secret>
 | **Mitteilungen** | Pro Gruppe + Kind-Switch (Allgemein/Lehrer/Schüler), HTML-Render mit Sanitize, 8 LernSax-Farben als Akzent-Streifen, Author + Datum |
 | **Notizen** | Kartengrid mit 6 Farben, Inline-Edit |
 | **Chat** | Discord-Style Bubbles · Konversationsliste mit Last-Message-Preview · Neuer Chat aus Gruppen-Mitgliedern (Online-Indikator + Suche) oder manueller Email · Aktiver Chat in URL `?with=` |
-| **Dateien** | Drive-Browser mit Drag&Drop-Upload · Quota-Bar · Click-anywhere auf Zeile · **Inline-Preview** für PDF/Bild/Text via Server-Proxy (kein Fullscreen) · Datei erscheint als "Sub-Ordner" im Breadcrumb · Forced-Save-Download · Mkdir/Rename/Delete |
-| **Stundenplan** | Wochenraster aus **DaVinci** (nicht LernSax) — Zeilen sind Stundenblöcke, gleiche Stunde liegt über alle Tage auf gleicher Höhe · Vertretungen, Entfall und Verlegungen farbig markiert · geteilte Klassen nebeneinander · Auto-Filter auf die eigene Klasse/Lehrkraft · Zugang pro Nutzer in Settings, verschlüsselt gespeichert |
+| **Dateien** | Drive-Browser mit Drag&Drop-Upload · Quota-Bar · Click-anywhere auf Zeile · **Inline-Preview** für PDF/Bild/Text via Server-Proxy (kein Fullscreen) · Datei erscheint als "Sub-Ordner" im Breadcrumb · **Breadcrumb-Trenner aufklappbar** — jeder Pfeil zeigt die Ordner auf der Ebene der Krume dahinter (beim Datei-Pfeil: die Dateien im Ordner), Seitwärtswechsel in einem Klick · Forced-Save-Download · Mkdir/Rename/Delete |
+| **Stundenplan** (`/timetable`) | Wochenraster aus **DaVinci** (nicht LernSax) — Zeilen sind Stundenblöcke, gleiche Stunde liegt über alle Tage auf gleicher Höhe · **laufende Stunde** live hervorgehoben mit Restzeit („noch 23 min", Browser-Uhr, 30-s-Takt) · in Pausen und vor Schulbeginn trägt stattdessen die nächste Stunde ein „in 15 min", gedeckelt auf eine Stunde · am Wochenende öffnet die **kommende** Woche, nicht die abgelaufene · Vertretungen, Entfall und Verlegungen farbig markiert · geteilte Klassen nebeneinander · Auto-Filter auf die eigene Klasse/Lehrkraft · Zugang pro Nutzer in Settings, verschlüsselt gespeichert · auch über MCP abrufbar |
 | **Settings** | Tab-Rail mit URL-State `?tab=` · Profil mit allen LernSax-Feldern · Mail-Signatur · **Stundenplan-Zugang** (Endpoint/Login mit Verbindungstest) · **Layout-Picker** (Sidenav vs. Topnav) · **Drag&Drop Tab-Reordering** mit Live-Shift, Drop-into-Hidden-Zone |
 
 ### Stundenplan-Datenquellen
@@ -90,6 +94,32 @@ Bottom-Tabs und Drill-down, ab `md` die Mehrspalten-Ansichten, ab `xl`
 zusätzlich die 240px-Seitenleisten. Ein JS-Store müsste beim SSR raten und
 würde bei Fehlbedienung die Hydration mitreißen.
 
+Wo eine Ansicht auf dem Handy nicht bloß enger, sondern *anders* sein muss,
+stehen beide Varianten im Markup und werden per CSS umgeschaltet — Stundenplan
+(Tagesliste statt Wochenraster), Kalender (Monatswähler mit Punkten plus
+Tagesagenda statt 6×7-Raster mit Titeln), Dateien (Name mit Datum/Größe als
+zweite Zeile statt fünf Spalten).
+
+### Mobile Navigation
+
+Die Tab-Leiste unten trägt bis zu fünf Apps in der vom Nutzer konfigurierten
+Reihenfolge; der letzte Platz gehört dem **Avatar**, nicht einem „Mehr"-Menü.
+Er öffnet dasselbe Profil-Popup wie am Desktop, dort aber zusätzlich mit
+
+- **Gruppen / Räume**, sofern die Route überhaupt in einer Gruppe arbeitet —
+  auf dem Handy gibt es keine Seitenleiste, die das sonst trüge, und
+- **Apps**, das die Schublade mit der vollständigen App-Liste aufzieht.
+
+Einstellungen sind aus der App-Schublade und der Tab-Leiste ausgeblendet: der
+Eintrag steht im Profil-Popup, das immer eine Berührung entfernt ist. Zweimal
+dasselbe Ziel nebeneinander wäre kein zusätzlicher Weg, nur eine zusätzliche
+Entscheidung.
+
+Die Schublade schließt bei jedem Griff daneben. Der Backdrop allein reicht
+dafür nicht — die Tab-Leiste liegt auf derselben z-Ebene und steht im DOM
+danach, fängt Klicks also ab; ein `pointerdown`-Listener am Dokument erwischt
+Leiste, Avatar und Backdrop gleichermaßen.
+
 Wechsel in Settings → Navigation. Custom-Order und Sichtbarkeit der Tabs werden in `localStorage` gespeichert.
 
 ### Avatar-Menü
@@ -106,7 +136,16 @@ Die Gruppen-Sidebar passt sich der Route an:
 | `/` | versteckt (Dashboard ist aggregiert) |
 | `/tasks`, `/calendar` | Persönlich + Klassen |
 | `/board`, `/forum`, `/wiki` | Schule + Klassen |
-| `/mail`, `/notes`, `/messenger`, `/settings` | versteckt |
+| `/files` | Persönlich + Schule + Klassen |
+| `/mail`, `/notes`, `/messenger`, `/timetable`, `/settings` | versteckt |
+
+Die zuletzt gewählte Gruppe landet im Cookie `lernsax_group` und wird
+bereichsübergreifend wieder eingesetzt — von Wiki zu Dateien bleibt man im
+selben Raum. Der Server schreibt sie im Layout-Load zurück in die URL (`?group=`),
+weil die Gruppe dort lebt und der Redirect vor jedem Client-Code passieren muss.
+Ein leerer Cookie ist eine echte Antwort („Persönlich") und wird nicht
+überschrieben; eine Gruppe, die nicht mehr existiert oder zu den Scopes der
+Route nicht passt, wird ignoriert statt in eine leere Ansicht zu führen.
 
 ## MCP-Server (`packages/mcp`)
 
@@ -143,7 +182,22 @@ Env-Vars (HTTP):
 
 ### Verfügbare Tools
 
-`whoami`, `groups_list`, `mail_*` (folders/list/read/send/flag/move/delete), `tasks_*`, `calendar_*` (+ `calendar_holidays`), `board_*`, `notes_*`, `chat_*`, `files_*`, `notifications_*`, `profile_get`, `addresses_list`, `forum_*`, `wiki_page`, `members_*`, `resources_*`, plus `raw_call` als Escape-Hatch.
+`whoami`, `groups_list`, `mail_*` (folders/list/read/send/flag/move/delete), `tasks_*`, `calendar_*` (+ `calendar_holidays`), `board_*`, `notes_*`, `chat_*`, `files_*`, `notifications_*`, `profile_get`, `addresses_list`, `forum_*`, `wiki_page`, `members_*`, `resources_*`, `timetable_*`, plus `raw_call` als Escape-Hatch.
+
+#### Stundenplan über MCP
+
+`timetable_info` und `timetable_get` (Default: laufende Woche — am Wochenende
+die kommende, dieselbe Regel wie in der Weboberfläche; dazu `from`/`to`,
+`class_code`, `teacher_code`, `room_code`, `changes_only`) lesen **denselben**
+DaVinci-Zugang, den die Weboberfläche unter Settings → Stundenplan gespeichert
+hat — ein Chat-Client kann die InfoServer-URL einer Schule schließlich nicht
+kennen. Der MCP-Container entschlüsselt die Konfiguration aus
+`/app/data/davinci` mit dem gemeinsamen `LERNSAX_WEB_SESSION_KEY`, genau wie er
+es schon für die Sessions tut. Die Kennung ist derselbe `user_id`
+(SHA-256 der Email, gekürzt), also treffen OAuth-Bearer und stdio-Aufruf mit
+`email`/`password` auf dieselbe Konfiguration. Ohne hinterlegten Zugang
+antworten beide Tools mit einem Hinweis auf die Einrichtung statt mit einem
+leeren Plan.
 
 ## Core-Library (`packages/core`)
 

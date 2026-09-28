@@ -2,6 +2,7 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { destroySession, destroySessionsForUser, getUserIdForSession } from "$lib/server/sessionStore";
 import { clearConfig as clearDavinciConfig } from "$lib/server/davinciStore";
+import { GROUP_COOKIE } from "$lib/nav";
 
 const COOKIE = "lernsax_sid";
 
@@ -23,5 +24,6 @@ export const POST: RequestHandler = async ({ cookies }) => {
     clearDavinciConfig(user_id);
   } else if (sid) destroySession(sid);
   cookies.delete(COOKIE, { path: "/" });
+  cookies.delete(GROUP_COOKIE, { path: "/" });
   return json({ ok: true, redirect: "/login" });
 };

@@ -42,6 +42,99 @@
 
   const weekLabel = $derived(`${fmtDay(data.weekStart)} – ${fmtDayYear(data.weekEnd)}`);
 
+  // ── "Gerade jetzt" ───────────────────────────────────────────────────────
+  // The running period has to come from the *browser's* clock: the server
+  // renders once and the page then sits open for hours, and a server-side
+  // "now" would also be wrong for anyone in another timezone. `now` stays null
+  // until hydration so SSR and the first client render agree.
+  let now = $state<Date | null>(null);
+  $effect(() => {
+    const tick = () => (now = new Date());
+    tick();
+    // A minute's granularity is all a period boundary needs; 30s keeps the
+    // switch from lagging visibly.
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  });
+
+  const blocks = $derived(data.configured ? data.blocks : []);
+  /** Today per the browser, so the highlight survives midnight on an open tab. */
+  const todayLocal = $derived(
+    now
+      ? new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+      : data.today,
+  );
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(":");
+    return Number(h) * 60 + Number(m);
+  };
+  /**
+   * Index of the block the clock currently sits in, or -1.
+   *
+   * HTML exports publish period numbers and no times, so there is nothing to
+   * compare against there — those simply never highlight.
+   */
+  const currentBlock = $derived.by(() => {
+    if (!now) return -1;
+    const mins = now.getHours() * 60 + now.getMinutes();
+    return blocks.findIndex((b) => b.start && b.end && toMinutes(b.start) <= mins && mins < toMinutes(b.end));
+  });
+  /** Only meaningful while today is one of the columns on screen. */
+  const showsToday = $derived(todayLocal >= data.weekStart && todayLocal <= data.weekEnd);
+  /**
+   * Minutes left in the running block.
+   *
+   * More useful than a bare "jetzt": the question in a corridor is not whether
+   * a lesson is running but how long it still is. Rounded up so the last
+   * seconds read "noch 1 min" rather than "noch 0 min".
+   */
+  const remainingMin = $derived.by(() => {
+    if (!now || currentBlock < 0) return null;
+    const end = blocks[currentBlock]?.end;
+    if (!end) return null;
+    const mins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    return Math.max(1, Math.ceil(toMinutes(end) - mins));
+  });
+  const isNow = (date: string, bi: number) => date === todayLocal && bi === currentBlock;
+
+  /** Heutige Spalte, sofern sie in der angezeigten Woche liegt. */
+  const todayDay = $derived(data.configured ? data.days.find((d) => d.date === todayLocal) : undefined);
+  /**
+   * Die Stunde, die gleich anfängt — nur wenn gerade keine läuft.
+   *
+   * Pausen und die Zeit vor der ersten Stunde ließen den Tag sonst ganz ohne
+   * Markierung. Gedeckelt auf eine Stunde: „in 124 min" ist nichts, wonach
+   * jemand handelt, und ein freier Nachmittag soll nicht den Abend anleuchten.
+   * Leere Blöcke werden übersprungen — das Badge hängt an einer Karte, und wo
+   * heute keine Stunde ist, gibt es keine.
+   */
+  const upcomingBlock = $derived.by(() => {
+    if (!now || currentBlock >= 0 || !todayDay) return -1;
+    const mins = now.getHours() * 60 + now.getMinutes();
+    let best = -1;
+    let bestStart = Number.POSITIVE_INFINITY;
+    blocks.forEach((b, i) => {
+      if (!b.start || !todayDay.cells[i]) return;
+      const start = toMinutes(b.start);
+      if (start > mins && start - mins <= 60 && start < bestStart) {
+        best = i;
+        bestStart = start;
+      }
+    });
+    return best;
+  });
+  const untilMin = $derived.by(() => {
+    if (!now || upcomingBlock < 0) return null;
+    const start = blocks[upcomingBlock]?.start;
+    if (!start) return null;
+    const mins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    return Math.max(1, Math.ceil(toMinutes(start) - mins));
+  });
+  const isNext = (date: string, bi: number) => date === todayLocal && bi === upcomingBlock;
+  /** "" | "now" | "next" — was die Karte über ihren Zeitbezug weiß. */
+  const phaseOf = (date: string, bi: number): "" | "now" | "next" =>
+    isNow(date, bi) ? "now" : isNext(date, bi) ? "next" : "";
+
   /** Tailwind accents per change type — cancelled reads as "gone", not "new". */
   const CHANGE_STYLE: Record<string, string> = {
     cancelled: "border-rose-500/40 bg-rose-500/5",
@@ -61,7 +154,7 @@
   };
 </script>
 
-{#snippet lesson(e: DaVinciEntry)}
+{#snippet lesson(e: DaVinciEntry, phase: "" | "now" | "next" = "")}
   <div
     class="h-full min-w-0 overflow-hidden rounded-xl border p-2.5 {e.change
       ? CHANGE_STYLE[e.change.type]
@@ -77,7 +170,15 @@
       </span>
       <!-- Which class this belongs to only matters when the view isn't already
            narrowed to one — an unfiltered HTML export lists the whole school. -->
-      {#if !data.filter?.classCode && e.classes.length}
+      {#if phase === "now" && remainingMin !== null}
+        <span class="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
+          noch {remainingMin} min
+        </span>
+      {:else if phase === "next" && untilMin !== null}
+        <span class="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
+          in {untilMin} min
+        </span>
+      {:else if !data.filter?.classCode && e.classes.length}
         <span class="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-400">
           {e.classes.join(", ")}
         </span>
@@ -110,16 +211,6 @@
       {/if}
     {/if}
   </div>
-{/snippet}
-
-{#snippet blockLabel(block: { period?: string; start: string; end: string })}
-  {#if block.period}
-    <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">{block.period}</span>
-  {/if}
-  <!-- HTML exports publish period numbers only; there are no times. -->
-  {#if block.start}
-    <span class="text-[11px] text-zinc-500">{block.start}–{block.end}</span>
-  {/if}
 {/snippet}
 
 {#snippet controls()}
@@ -157,7 +248,7 @@
           DaVinci-InfoServer oder ein HTML-Vertretungsplan.
         </p>
         <a
-          href="/settings?tab=stundenplan"
+          href="/settings?tab=timetable"
           class="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium hover:bg-indigo-400"
         >
           <Icon name="settings" size={16} />
@@ -170,7 +261,7 @@
       <div class="max-w-md rounded-2xl border border-rose-900/60 bg-rose-950/20 p-6 text-center">
         <h2 class="mb-2 text-lg font-semibold text-rose-200">Abruf fehlgeschlagen</h2>
         <p class="mb-4 text-sm text-rose-300/80">{data.error}</p>
-        <a href="/settings?tab=stundenplan" class="text-sm text-rose-200 underline">Einstellungen prüfen</a>
+        <a href="/settings?tab=timetable" class="text-sm text-rose-200 underline">Einstellungen prüfen</a>
       </div>
     </div>
   {:else if data.blocks.length === 0}
@@ -184,9 +275,9 @@
            a JS breakpoint store would have to guess during SSR. -->
       <div class="md:hidden">
         {#each data.days as day, i (day.date)}
-          <section class="mb-4 rounded-2xl border bg-zinc-900/40 p-3 {day.date === data.today ? 'border-indigo-500/60' : 'border-zinc-800'}">
+          <section class="mb-4 rounded-2xl border bg-zinc-900/40 p-3 {day.date === todayLocal ? 'border-indigo-500/60' : 'border-zinc-800'}">
             <header class="mb-2 flex items-baseline justify-between">
-              <h2 class="text-sm font-semibold {day.date === data.today ? 'text-indigo-300' : 'text-zinc-200'}">
+              <h2 class="text-sm font-semibold {day.date === todayLocal ? 'text-indigo-300' : 'text-zinc-200'}">
                 {DAY_NAMES[i]}
               </h2>
               <span class="text-xs text-zinc-500">{fmtDay(day.date)}</span>
@@ -201,12 +292,28 @@
                 {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
                   {@const cell = day.cells[bi]}
                   {#if cell}
-                    <li>
-                      <div class="mb-1 flex items-baseline gap-2 px-0.5 whitespace-nowrap">
-                        {@render blockLabel(block)}
+                    {@const phase = phaseOf(day.date, bi)}
+                    <li class="flex items-start gap-2">
+                      <div class="flex w-12 shrink-0 flex-col items-start pt-1.5">
+                        {#if block.period}
+                          <span
+                            class="rounded px-1.5 py-0.5 text-[11px] font-medium {phase === 'now'
+                              ? 'bg-indigo-500/20 text-indigo-200'
+                              : 'bg-zinc-800 text-zinc-300'}"
+                          >{block.period}</span>
+                        {/if}
+                        <!-- HTML-Exporte veröffentlichen nur Stundennummern. -->
+                        {#if block.start}
+                          <span class="mt-1 text-[10px] leading-tight {phase === 'now' ? 'text-indigo-300' : 'text-zinc-500'}">{block.start}</span>
+                          <span class="text-[10px] leading-tight {phase === 'now' ? 'text-indigo-400/70' : 'text-zinc-600'}">{block.end}</span>
+                        {/if}
                       </div>
-                      <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
-                        {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
+                      <div
+                        class="grid min-w-0 flex-1 gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}
+                          {phase === 'now' ? 'rounded-xl ring-2 ring-indigo-400/70' : ''}
+                          {phase === 'next' ? 'rounded-xl ring-1 ring-zinc-600' : ''}"
+                      >
+                        {#each cell.entries as e (e.key)}{@render lesson(e, phase)}{/each}
                       </div>
                     </li>
                   {/if}
@@ -228,7 +335,7 @@
         >
           <div></div>
           {#each data.days as day, i (day.date)}
-            {@const isToday = day.date === data.today}
+            {@const isToday = day.date === todayLocal}
             <div
               class="rounded-lg border px-3 py-2 {isToday
                 ? 'border-indigo-500/60 bg-indigo-500/5'
@@ -248,26 +355,43 @@
           {/each}
 
           {#each data.blocks as block, bi (block.start + "|" + block.end + "|" + (block.period ?? ""))}
+            {@const nowRow = showsToday && bi === currentBlock}
             <div class="flex flex-col items-end justify-start pt-2 pr-1 text-right whitespace-nowrap">
               {#if block.period}
-                <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">
+                <span
+                  class="rounded px-1.5 py-0.5 text-[11px] font-medium {nowRow
+                    ? 'bg-indigo-500/20 text-indigo-200'
+                    : 'bg-zinc-800 text-zinc-300'}"
+                >
                   {block.period}
                 </span>
               {/if}
               {#if block.start}
-                <span class="mt-1 text-[10px] leading-tight text-zinc-500">{block.start}</span>
-                <span class="text-[10px] leading-tight text-zinc-600">{block.end}</span>
+                <span class="mt-1 text-[10px] leading-tight {nowRow ? 'text-indigo-300' : 'text-zinc-500'}">{block.start}</span>
+                <span class="text-[10px] leading-tight {nowRow ? 'text-indigo-400/70' : 'text-zinc-600'}">{block.end}</span>
               {/if}
             </div>
 
             {#each data.days as day (day.date)}
               {@const cell = day.cells[bi]}
+              <!-- The accent lands on the one cell where "now" actually is —
+                   today's column in the running period — so the eye goes to
+                   the lesson, not to the whole row. -->
+              {@const phase = phaseOf(day.date, bi)}
               {#if cell}
-                <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
-                  {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
+                <div
+                  class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}
+                    {phase === 'now' ? 'rounded-xl ring-2 ring-indigo-400/70' : ''}
+                    {phase === 'next' ? 'rounded-xl ring-1 ring-zinc-600' : ''}"
+                >
+                  {#each cell.entries as e (e.key)}{@render lesson(e, phase)}{/each}
                 </div>
               {:else}
-                <div class="rounded-xl border border-dashed border-zinc-900"></div>
+                <div
+                  class="rounded-xl border border-dashed {phase === 'now'
+                    ? 'border-indigo-500/40 bg-indigo-500/5'
+                    : 'border-zinc-900'}"
+                ></div>
               {/if}
             {/each}
           {/each}
@@ -319,7 +443,7 @@
           Neu laden
         </button>
         <a
-          href="/settings?tab=stundenplan"
+          href="/settings?tab=timetable"
           class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-200"
         >
           <Icon name="settings" size={16} />
@@ -341,7 +465,7 @@
           <Icon name="refresh" size={16} />
         </button>
         <a
-          href="/settings?tab=stundenplan"
+          href="/settings?tab=timetable"
           class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
           aria-label="Einstellungen"
         >

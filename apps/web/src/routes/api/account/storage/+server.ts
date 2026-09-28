@@ -95,6 +95,26 @@ export const GET: RequestHandler = async ({ cookies }) => {
           }
         : null,
     },
+    // Funktionale Cookies, die der Browser selbst setzt — hier nur zur
+    // Transparenz aufgeführt, der Server liest sie lediglich beim Rendern.
+    browser: {
+      scope: "nur im Browser, nichts davon landet auf dem Server",
+      cookies: [
+        {
+          name: "lernsax_group",
+          purpose: "Zuletzt geöffnete Gruppe bzw. Raum, damit der Bereich beim Wechsel zwischen Wiki, Dateien, Mitteilungen usw. erhalten bleibt",
+          value: "Gruppen-Kennung oder leer für „Persönlich“",
+          ttl_days: 365,
+        },
+        {
+          name: "lernsax_theme",
+          purpose: "Hell/Dunkel, damit serverseitig gerenderte Ansichten im richtigen Design starten",
+          value: "„light“ oder „dark“",
+          ttl_days: 365,
+        },
+      ],
+      local_storage: ["Navigations-Layout und Reihenfolge der Tabs", "Theme-Einstellung"],
+    },
     cache: {
       contacts: { ttl_seconds: 60, scope: "im Arbeitsspeicher, pro Benutzer", stored: ["Login", "Anzeigename", "Online-Flag", "Gruppen"] },
       davinci_dataset: { ttl_minutes: 5, scope: "im Arbeitsspeicher, pro Benutzer", stored: ["Stundenplan-Datensatz der Schule", "eTag des Servers"] },
@@ -103,7 +123,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
     },
     not_stored: [
       "Mail-Inhalte, Anhänge, Dateien, Kalender-Einträge, Aufgaben (werden bei jeder Anfrage live von LernSax geholt)",
-      "Browser-Einstellungen (Theme, Navigations-Layout) — die liegen im localStorage deines Browsers, nicht auf dem Server",
+      "Browser-Einstellungen (Theme, Navigations-Layout, zuletzt geöffnete Gruppe) — die liegen im localStorage bzw. in funktionalen Cookies deines Browsers, nicht auf dem Server",
     ],
   });
 };

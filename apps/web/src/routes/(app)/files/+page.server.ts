@@ -34,6 +34,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     })),
   }));
   const breadcrumb = buildFileBreadcrumb(entries, folderId);
+  // Folders sitting on the same level as each crumb, so the separator in front
+  // of a crumb can offer its siblings. The whole listing is already in hand —
+  // this is a regroup, not another round-trip.
+  const siblings = breadcrumb.map((b) =>
+    (tree.get(b.parent_id) ?? [])
+      .filter((e) => e.type === "folder")
+      .map((e) => ({ id: e.id, name: e.name })),
+  );
 
   let file: FileEntry | null = null;
   if (fileId) {
@@ -49,6 +57,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     group: group ?? null,
     folderId,
     breadcrumb,
+    siblings,
     children,
     file,
     quota,

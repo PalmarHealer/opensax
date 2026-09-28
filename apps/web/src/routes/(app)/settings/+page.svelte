@@ -34,6 +34,11 @@
       stored: string[];
       record: { endpoint: string; resolved_endpoint: string | null; source_type: string | null; username: string; has_password: boolean; class_code: string | null; teacher_code: string | null; include_supervisions: boolean } | null;
     };
+    browser?: {
+      scope: string;
+      cookies: Array<{ name: string; purpose: string; value: string; ttl_days: number }>;
+      local_storage: string[];
+    };
     cache: Record<string, { ttl_seconds?: number; ttl_minutes?: string | number; scope: string; stored: string[] }>;
     not_stored: string[];
   }
@@ -113,11 +118,11 @@
     }
   }
 
-  type Tab = "profile" | "mail" | "stundenplan" | "connections" | "navigation" | "account";
+  type Tab = "profile" | "mail" | "timetable" | "connections" | "navigation" | "account";
   const SECTIONS = [
     ["profile", "Profil", "settings"],
     ["mail", "Mail", "mail"],
-    ["stundenplan", "Stundenplan", "table"],
+    ["timetable", "Stundenplan", "table"],
     ["connections", "Verbindungen", "send"],
     ["navigation", "Navigation", "list-check"],
     ["account", "Account", "logout"],
@@ -439,7 +444,7 @@
           <h3 class="mb-1 text-sm font-semibold text-zinc-300">Filterregeln</h3>
           <p>Diese API ist auf dem LernSax-Server nicht öffentlich erreichbar. Sobald sie verfügbar ist, kommt das Modul automatisch hier rein.</p>
         </div>
-      {:else if tab === "stundenplan"}
+      {:else if tab === "timetable"}
         <h2 class="mb-1 text-xl font-semibold tracking-tight">Stundenplan</h2>
         <p class="mb-4 text-sm text-zinc-400">
           OpenSax holt Plan und Vertretungen direkt vom DaVinci-Server deiner Schule.
@@ -449,7 +454,7 @@
         <!-- `tab` rides along in the action URL so a submit that isn't enhanced
              (no JS yet, stale tab) still comes back to this tab instead of
              dumping the user on Profil with an orphaned error. -->
-        <form method="POST" action="?/saveDavinci&tab=stundenplan" use:enhance class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <form method="POST" action="?/saveDavinci&tab=timetable" use:enhance class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <label class="block">
             <span class="mb-1 block text-xs text-zinc-400">Endpoint</span>
             <input
@@ -559,7 +564,7 @@
           <div class="flex justify-end gap-2 pt-1">
             {#if data.davinci}
               <button
-                formaction="?/clearDavinci&tab=stundenplan"
+                formaction="?/clearDavinci&tab=timetable"
                 class="rounded-md border border-zinc-800 px-4 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
               >
                 Entfernen
@@ -830,6 +835,19 @@
                   </ul>
                 {/if}
               </div>
+
+              {#if storage.browser}
+                <div>
+                  <p class="font-medium">Funktionale Cookies im Browser</p>
+                  <p class="text-xs text-zinc-500">{storage.browser.scope}.</p>
+                  <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
+                    {#each storage.browser.cookies as c}
+                      <li>· <code class="text-zinc-400">{c.name}</code> — {c.purpose} ({c.value}, {c.ttl_days} Tage)</li>
+                    {/each}
+                    {#each storage.browser.local_storage as line}<li>· localStorage — {line}</li>{/each}
+                  </ul>
+                </div>
+              {/if}
 
               <div>
                 <p class="font-medium">Zwischenspeicher (nur Arbeitsspeicher, nichts auf der Festplatte)</p>

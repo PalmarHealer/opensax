@@ -83,10 +83,38 @@
   let showCreate = $state(false);
   let createDate = $state(todayKey);
   const groupValue = $derived(data.group ?? "");
+
+  // ── Mobile: Tagesauswahl ─────────────────────────────────────────────────
+  // `picked` ist nur die *Absicht* des Nutzers; welcher Tag tatsächlich gilt,
+  // leitet sich daraus plus dem angezeigten Monat ab. Damit fällt die Auswahl
+  // beim Monatswechsel von selbst auf einen Tag im neuen Monat zurück, ohne
+  // einen Effect, der seinen eigenen State zurückschreibt.
+  const monthKey = $derived(`${data.year}-${String(data.month0 + 1).padStart(2, "0")}`);
+  let picked = $state<string | null>(null);
+  const selectedKey = $derived.by(() => {
+    if (picked && picked.startsWith(monthKey)) return picked;
+    return todayKey.startsWith(monthKey) ? todayKey : `${monthKey}-01`;
+  });
+  const selectedEntries = $derived(entriesByDay.get(selectedKey) ?? []);
+  const selectedHoliday = $derived(holidaysByDay.get(selectedKey)?.[0]);
+
+  const fmtDayLong = (key: string) =>
+    new Date(`${key}T00:00:00`).toLocaleDateString("de-DE", {
+      weekday: "long", day: "2-digit", month: "long",
+    });
+  /** „Ganztägig" oder die Uhrzeitspanne; mehrtägige Termine nennen das Enddatum. */
+  function timeLabel(e: { start_date: number; end_date: number; is_all_day?: 0 | 1 }): string {
+    const start = new Date(e.start_date * 1000);
+    const end = new Date(e.end_date * 1000);
+    const hhmm = (d: Date) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const spansDays = isoDay(start) !== isoDay(new Date((e.end_date - 1) * 1000));
+    if (e.is_all_day) return spansDays ? `Ganztägig bis ${isoDay(new Date((e.end_date - 1) * 1000)).split("-").reverse().join(".")}` : "Ganztägig";
+    return spansDays ? `${hhmm(start)} – ${hhmm(end)} (mehrtägig)` : `${hhmm(start)} – ${hhmm(end)}`;
+  }
 </script>
 
 <div class="grid h-full" style="grid-template-rows: auto 1fr">
-  <header class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
+  <header class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-950/80 px-4 py-3 md:gap-3 md:px-6">
     <div class="flex items-center gap-2">
       <button onclick={() => navMonth(-1)} class="grid h-8 w-8 place-items-center rounded-md border border-zinc-800 bg-zinc-900 hover:bg-zinc-800" aria-label="Vorheriger Monat">
         <Icon name="chevron-left" size={16} />
@@ -95,13 +123,14 @@
       <button onclick={() => navMonth(1)} class="grid h-8 w-8 place-items-center rounded-md border border-zinc-800 bg-zinc-900 hover:bg-zinc-800" aria-label="Nächster Monat">
         <Icon name="chevron-right" size={16} />
       </button>
-      <h1 class="ml-3 text-lg font-semibold tracking-tight">{MONTH_NAMES[data.month0]} {data.year}</h1>
+      <h1 class="ml-1 text-base font-semibold tracking-tight md:ml-3 md:text-lg">{MONTH_NAMES[data.month0]} {data.year}</h1>
     </div>
     {#if canWrite && !data.permissionError}
       <button
         onclick={() => { showCreate = true; createDate = todayKey; }}
-        class="flex items-center gap-1.5 rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
-      ><Icon name="plus" size={16} /> Termin</button>
+        class="flex items-center gap-1.5 rounded-md bg-indigo-500 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-400 md:px-3"
+        aria-label="Termin anlegen"
+      ><Icon name="plus" size={16} /><span class="hidden sm:inline">Termin</span></button>
     {/if}
   </header>
 
@@ -116,7 +145,83 @@
         </div>
       </div>
     {:else}
-    <div class="grid h-full" style="grid-template-rows: auto 1fr">
+    <div class="flex h-full min-h-0 flex-col md:hidden">
+      <div class="grid shrink-0 grid-cols-7 border-b border-zinc-800 bg-zinc-900/30">
+        {#each WEEKDAYS as wd}
+          <div class="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{wd}</div>
+        {/each}
+      </div>
+
+      <!-- Der Monat als Wähler: Zahl plus Punkte statt Titeln. Was an einem Tag
+           liegt, liest man in der Agenda darunter — im Raster wäre es auf
+           390px ohnehin nur ein abgeschnittenes Wort. -->
+      <div class="grid shrink-0 grid-cols-7 gap-px border-b border-zinc-800 bg-zinc-900">
+        {#each grid as d}
+          {@const inMonth = d.getMonth() === data.month0}
+          {@const key = isoDay(d)}
+          {@const dayEntries = entriesByDay.get(key) ?? []}
+          {@const holiday = holidaysByDay.get(key)?.[0]}
+          <button
+            class="flex aspect-square flex-col items-center justify-center gap-1 bg-zinc-950 transition
+              {inMonth ? 'text-zinc-200' : 'text-zinc-700'}
+              {key === selectedKey ? 'bg-indigo-500/15 ring-1 ring-inset ring-indigo-400' : ''}"
+            aria-pressed={key === selectedKey}
+            aria-label="{d.getDate()}. — {dayEntries.length} Termine"
+            onclick={() => (picked = key)}
+          >
+            <span class="text-xs font-semibold {key === todayKey ? 'text-indigo-300' : ''}">{d.getDate()}</span>
+            <span class="flex h-1 items-center gap-0.5">
+              {#if holiday}
+                <span class="h-1 w-1 rounded-full bg-amber-400"></span>
+              {/if}
+              {#each dayEntries.slice(0, 3) as e (e.id)}
+                <span class="h-1 w-1 rounded-full bg-indigo-400"></span>
+              {/each}
+            </span>
+          </button>
+        {/each}
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-auto p-3">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold text-zinc-200">{fmtDayLong(selectedKey)}</h2>
+          {#if canWrite}
+            <button
+              class="shrink-0 rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+              onclick={() => { showCreate = true; createDate = selectedKey; }}
+            >+ Termin</button>
+          {/if}
+        </div>
+
+        {#if selectedHoliday}
+          <p class="mb-2 inline-block rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+            {selectedHoliday.title}
+          </p>
+        {/if}
+
+        {#if selectedEntries.length === 0}
+          <p class="py-6 text-center text-xs text-zinc-600">Keine Termine.</p>
+        {:else}
+          <ul class="space-y-2">
+            {#each selectedEntries as e (e.id)}
+              <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
+                <p class="text-sm font-medium break-words text-zinc-100">{e.title}</p>
+                <p class="mt-0.5 text-xs text-zinc-500">{timeLabel(e)}</p>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Unterhalb `md` ist das 6×7-Raster mit Text-Chips unbrauchbar: die Zeilen
+         werden ~260px hoch, die letzte Woche wird abgeschnitten, und die meisten
+         Zellen bleiben leer. Darunter steht deshalb ein kompakter Monatswähler
+         mit einer Agenda für den angetippten Tag — dieselbe Information auf
+         einem Drittel der Höhe. Beide Varianten werden gerendert und per CSS
+         umgeschaltet, wie im Stundenplan: ein JS-Breakpoint müsste beim SSR
+         raten. -->
+    <div class="hidden h-full md:grid" style="grid-template-rows: auto 1fr">
       <div class="grid grid-cols-7 border-b border-zinc-800 bg-zinc-900/30">
         {#each WEEKDAYS as wd}
           <div class="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">{wd}</div>
