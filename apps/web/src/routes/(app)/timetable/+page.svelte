@@ -42,6 +42,16 @@
 
   const weekLabel = $derived(`${fmtDay(data.weekStart)} – ${fmtDayYear(data.weekEnd)}`);
 
+  // ── Zurück zur Standardwoche ─────────────────────────────────────────────
+  // `toToday` setzt auf das zurück, was der Server ohne `?week=` zeigt. Am
+  // Wochenende ist das die kommende Woche — dann wäre „Heute" schlicht falsch
+  // beschriftet, also sagt der Knopf, wohin er wirklich führt. Die Entscheidung
+  // kommt vom Server, weil er sie beim Zurücksetzen auch trifft; die Browser-Uhr
+  // könnte an einem Zeitzonenrand zu einem anderen Schluss kommen.
+  const defaultIsNextWeek = $derived(data.today < data.defaultWeek);
+  const resetLabel = $derived(defaultIsNextWeek ? "Nächste Woche" : "Heute");
+  const atDefaultWeek = $derived(data.weekStart === data.defaultWeek);
+
   // ── "Gerade jetzt" ───────────────────────────────────────────────────────
   // The running period has to come from the *browser's* clock: the server
   // renders once and the page then sits open for hours, and a server-side
@@ -243,10 +253,17 @@
       <Icon name="chevron-left" size={16} />
     </button>
     <button
-      class="flex-1 rounded-md border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
+      class="flex-1 rounded-md border border-zinc-800 px-3 py-1.5 text-sm transition
+        {atDefaultWeek
+          ? 'cursor-default text-zinc-500'
+          : 'text-zinc-300 hover:bg-zinc-800'}"
       onclick={toToday}
+      disabled={atDefaultWeek}
+      title={defaultIsNextWeek
+        ? "Zur kommenden Woche — die laufende ist vorbei"
+        : "Zur laufenden Woche"}
     >
-      Heute
+      {resetLabel}
     </button>
     <button
       class="rounded-md border border-zinc-800 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"

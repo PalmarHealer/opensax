@@ -129,11 +129,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   const today = todayIso();
   const weekParam = url.searchParams.get("week");
-  const weekStart = weekParam ? mondayOf(weekParam) : defaultWeekStart(today);
+  // Welche Woche der Zurücksetzen-Knopf anspringt. Der Client beschriftet ihn
+  // danach — am Wochenende heißt das nicht „Heute".
+  const defaultWeek = defaultWeekStart(today);
+  const weekStart = weekParam ? mondayOf(weekParam) : defaultWeek;
   const weekEnd = addDays(weekStart, 6);
 
   if (!user_id || !cfg) {
-    return { configured: false as const, weekStart, weekEnd, today };
+    return { configured: false as const, weekStart, weekEnd, today, defaultWeek };
   }
 
   const force = url.searchParams.has("refresh");
@@ -210,6 +213,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       weekStart,
       weekEnd,
       today,
+      defaultWeek,
       days,
       blocks,
       sourceType: cfg.sourceType ?? "infoserver",
@@ -225,6 +229,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       weekStart,
       weekEnd,
       today,
+      defaultWeek,
       days: [] as { date: string; cells: (DaySlot | null)[]; note?: string }[],
       blocks: [] as Block[],
       sourceType: cfg.sourceType ?? "infoserver",
