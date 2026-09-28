@@ -100,36 +100,56 @@
   /** Heutige Spalte, sofern sie in der angezeigten Woche liegt. */
   const todayDay = $derived(data.configured ? data.days.find((d) => d.date === todayLocal) : undefined);
   /**
-   * Die Stunde, die gleich anfängt — nur wenn gerade keine läuft.
+   * Wie weit im Voraus die nächste Stunde angekündigt wird.
    *
-   * Pausen und die Zeit vor der ersten Stunde ließen den Tag sonst ganz ohne
-   * Markierung. Gedeckelt auf eine Stunde: „in 124 min" ist nichts, wonach
-   * jemand handelt, und ein freier Nachmittag soll nicht den Abend anleuchten.
-   * Leere Blöcke werden übersprungen — das Badge hängt an einer Karte, und wo
-   * heute keine Stunde ist, gibt es keine.
+   * Das Badge ist für den Weg zum nächsten Raum gedacht, nicht als Tagesplan:
+   * „in 124 min" ist nichts, wonach jemand handelt. Bei einer längeren Lücke
+   * geht dadurch nichts verloren — sobald sie auf eine Stunde zusammenschmilzt,
+   * taucht das Badge von selbst auf und steht dann volle 60 Minuten.
    */
-  const upcomingBlock = $derived.by(() => {
-    if (!now || currentBlock >= 0 || !todayDay) return -1;
+  const LEAD_MIN = 60;
+
+  /**
+   * Die nächste Stunde des heutigen Tages — unabhängig davon, wie weit sie weg
+   * ist. Erst die Anzeige entscheidet über den Vorlauf, damit die Regel an
+   * einer Stelle steht und nicht in der Suche versteckt ist.
+   *
+   * Blöcke, in denen heute nichts liegt, zählen nicht: das Badge hängt an einer
+   * Karte, und in einer Freistunde gibt es keine, an der es hängen könnte.
+   */
+  const nextBlock = $derived.by(() => {
+    if (!now || !todayDay) return -1;
     const mins = now.getHours() * 60 + now.getMinutes();
     let best = -1;
     let bestStart = Number.POSITIVE_INFINITY;
     blocks.forEach((b, i) => {
       if (!b.start || !todayDay.cells[i]) return;
       const start = toMinutes(b.start);
-      if (start > mins && start - mins <= 60 && start < bestStart) {
+      if (start > mins && start < bestStart) {
         best = i;
         bestStart = start;
       }
     });
     return best;
   });
-  const untilMin = $derived.by(() => {
-    if (!now || upcomingBlock < 0) return null;
-    const start = blocks[upcomingBlock]?.start;
+
+  /** Minuten bis zur nächsten Stunde, oder null wenn es keine mehr gibt. */
+  const untilNextMin = $derived.by(() => {
+    if (!now || nextBlock < 0) return null;
+    const start = blocks[nextBlock]?.start;
     if (!start) return null;
     const mins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
     return Math.max(1, Math.ceil(toMinutes(start) - mins));
   });
+
+  /**
+   * Angekündigt wird nur, wenn gerade keine Stunde läuft — die trägt bereits
+   * ihre Restzeit — und die nächste innerhalb des Vorlaufs liegt.
+   */
+  const upcomingBlock = $derived(
+    currentBlock < 0 && untilNextMin !== null && untilNextMin <= LEAD_MIN ? nextBlock : -1,
+  );
+  const untilMin = $derived(upcomingBlock < 0 ? null : untilNextMin);
   const isNext = (date: string, bi: number) => date === todayLocal && bi === upcomingBlock;
   /** "" | "now" | "next" — was die Karte über ihren Zeitbezug weiß. */
   const phaseOf = (date: string, bi: number): "" | "now" | "next" =>
