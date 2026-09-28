@@ -52,7 +52,8 @@ html.light .text-amber-300                                 { color: rgb(146 64 1
 html.light .text-sky-300                                   { color: rgb(7 89 133); }
 html.light .text-emerald-300                               { color: rgb(6 95 70); }
 html.light .text-violet-300                                { color: rgb(91 33 182); }
-html.light .text-indigo-300                                { color: rgb(67 56 202); }
+html.light .text-indigo-300,  html.light .text-indigo-200  { color: rgb(67 56 202); }
+html.light .text-indigo-400\/70                            { color: rgb(79 70 229 / 0.75); }
 
 html.light .bg-rose-500\/15    { background-color: rgb(244 63 94 / 0.16); }
 html.light .bg-amber-500\/15   { background-color: rgb(245 158 11 / 0.22); }
