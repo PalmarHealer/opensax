@@ -1,6 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { SessionCache, type Credentials, type LernSaxClient } from "@lernsax/core";
+import {
+  SessionCache,
+  describeDaVinci,
+  expandDaVinciDays,
+  personalFilter,
+  type Credentials,
+  type DaVinciEntry,
+  type LernSaxClient,
+} from "@lernsax/core";
 import { z } from "zod";
+import { getHtml, getPayload, loadDaVinciConfig, userIdForEmail, type DaVinciConfig } from "./davinci.js";
 
 // Email/password are optional on every tool: when the request arrives with
 // an OAuth Bearer (resolved into `defaultCreds` by the HTTP transport), the
@@ -708,6 +717,159 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
     },
     async ({ email, password, group, ...rest }) =>
       withClient({ email, password }, async (c) => ok(await c.resources.book(group, rest))),
+  );
+
+  // ─── Stundenplan (DaVinci) ──────────────────────────────────────────────
+  //
+  // Not a LernSax feature: the timetable lives on a school-run DaVinci server
+  // whose endpoint and login the user configured in the web app. We read that
+  // stored config rather than asking for it per call — there is no sensible
+  // way for a chat client to know a school's InfoServer URL.
+
+  /** ISO date in the server's local timezone — the plan is a wall-clock artefact. */
+  const todayIso = (): string => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  };
+  const addDays = (iso: string, n: number): string => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const mondayOf = (iso: string): string => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return mondayOf(todayIso());
+    // getUTCDay: 0 = Sunday, which belongs to the week that started 6 days ago.
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  };
+
+  /** Resolve the calling identity to the stored timetable config, or explain why not. */
+  const withTimetable = <T>(
+    creds: { email?: string; password?: string },
+    fn: (ctx: { user_id: string; cfg: DaVinciConfig }) => Promise<T>,
+  ): Promise<T> => {
+    const email = creds.email && creds.password ? creds.email : defaultCreds?.email;
+    if (!email) {
+      throw new Error("Credentials required — provide email+password or call via an authorized OAuth bearer.");
+    }
+    const user_id = userIdForEmail(email);
+    const cfg = loadDaVinciConfig(user_id);
+    if (!cfg) {
+      throw new Error(
+        "Kein Stundenplan hinterlegt. Der Zugang wird in der Weboberfläche unter Einstellungen → Stundenplan eingerichtet.",
+      );
+    }
+    return fn({ user_id, cfg });
+  };
+
+  server.tool(
+    "timetable_info",
+    "Describe the configured timetable (DaVinci) source: kind of publication, validity window, and which class/teacher the plan is filtered to.",
+    CredsShape,
+    async (creds) =>
+      withTimetable(creds, async ({ user_id, cfg }) => {
+        if (cfg.sourceType === "html") {
+          const res = await getHtml(user_id, cfg);
+          return ok({
+            source_type: "html",
+            endpoint: cfg.endpoint,
+            generated_at: res.generatedAt ?? null,
+            class_code: cfg.classCode ?? null,
+            teacher_code: cfg.teacherCode ?? null,
+            dates: [...new Set(res.entries.map((e) => e.date))].sort(),
+            entry_count: res.entries.length,
+            fetched_at: new Date(res.fetchedAt).toISOString(),
+          });
+        }
+        const res = await getPayload(user_id, cfg);
+        const auto = personalFilter(res.payload);
+        return ok({
+          source_type: "infoserver",
+          endpoint: cfg.endpoint,
+          info: describeDaVinci(res.payload),
+          class_code: cfg.classCode || (auto?.type === "class" ? auto.code : null),
+          teacher_code: cfg.teacherCode || (auto?.type === "teacher" ? auto.code : null),
+          filter_source: cfg.classCode || cfg.teacherCode ? "settings" : auto ? "server-identity" : "none",
+          include_supervisions: cfg.includeSupervisions ?? false,
+          fetched_at: new Date(res.fetchedAt).toISOString(),
+        });
+      }),
+  );
+
+  server.tool(
+    "timetable_get",
+    "Read the timetable / substitution plan for a date range. Defaults to the current week (Monday–Sunday). Entries carry the effective teachers and rooms with substitutions already folded in; `change` marks anything deviating from the regular plan (cancelled, substituted, moved, extra).",
+    {
+      ...CredsShape,
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+        .describe("Inclusive start date, YYYY-MM-DD. Default: Monday of the current week."),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+        .describe("Inclusive end date, YYYY-MM-DD. Default: `from` + 6 days."),
+      class_code: z.string().optional().describe("Override the class configured in Settings."),
+      teacher_code: z.string().optional().describe("Override the teacher short code configured in Settings."),
+      room_code: z.string().optional().describe("Keep only lessons in this room."),
+      changes_only: z.boolean().optional().describe("Return only entries that deviate from the regular plan."),
+    },
+    async ({ email, password, from, to, class_code, teacher_code, room_code, changes_only }) =>
+      withTimetable({ email, password }, async ({ user_id, cfg }) => {
+        const start = from ?? mondayOf(todayIso());
+        const end = to ?? addDays(start, 6);
+        if (end < start) throw new Error("`to` liegt vor `from`.");
+
+        let entries: DaVinciEntry[];
+        let classCode = class_code ?? cfg.classCode;
+        let teacherCode = teacher_code ?? cfg.teacherCode;
+        let notes: Record<string, string> = {};
+        let fetchedAt: number;
+
+        if (cfg.sourceType === "html") {
+          // A published export carries no login, so nobody can identify us —
+          // the class has to come from the stored config or from the call.
+          const res = await getHtml(user_id, cfg);
+          fetchedAt = res.fetchedAt;
+          notes = Object.fromEntries(
+            Object.entries(res.notes).filter(([d]) => d >= start && d <= end),
+          );
+          entries = res.entries.filter(
+            (e) => e.date >= start && e.date <= end
+              && (!classCode || e.classes.includes(classCode))
+              && (!teacherCode || e.teachers.includes(teacherCode)
+                || (e.change?.absentTeachers ?? []).includes(teacherCode))
+              && (!room_code || e.rooms.includes(room_code)),
+          );
+        } else {
+          const res = await getPayload(user_id, cfg);
+          fetchedAt = res.fetchedAt;
+          // An explicit pick wins; otherwise fall back to whatever object the
+          // server tied our login to.
+          const auto = personalFilter(res.payload);
+          classCode = classCode || (auto?.type === "class" ? auto.code : undefined);
+          teacherCode = teacherCode || (auto?.type === "teacher" ? auto.code : undefined);
+          entries = expandDaVinciDays(res.payload, {
+            from: start,
+            to: end,
+            classCode,
+            teacherCode,
+            roomCode: room_code,
+            includeSupervisions: cfg.includeSupervisions ?? false,
+          });
+        }
+
+        if (changes_only) entries = entries.filter((e) => !!e.change);
+        entries.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+
+        return ok({
+          from: start,
+          to: end,
+          source_type: cfg.sourceType ?? "infoserver",
+          filter: { class_code: classCode ?? null, teacher_code: teacherCode ?? null, room_code: room_code ?? null },
+          fetched_at: new Date(fetchedAt).toISOString(),
+          day_notes: notes,
+          count: entries.length,
+          entries,
+        });
+      }),
   );
 
   // ─── Raw escape hatch ───────────────────────────────────────────────────
