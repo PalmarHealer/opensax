@@ -157,6 +157,8 @@
     </p>
     <ul class="mt-3 space-y-2 text-sm text-zinc-300">
       <li><span class="font-medium">lernsax_sid</span> <span class="text-xs text-zinc-500">(HttpOnly · Secure · SameSite=Lax)</span><br /><span class="text-xs text-zinc-400">Session-Cookie. Verknüpft den Browser mit der serverseitig verschlüsselten Anmeldung. Ohne diesen Cookie ist kein Login möglich. Lebensdauer: 365 Tage oder bis zum Abmelden. Dabei werden zur Erkennung deiner Geräte IP und User-Agent zur Sitzung gespeichert (sichtbar unter Einstellungen → Account → Andere Sitzungen).</span></li>
+      <li><span class="font-medium">lernsax_group</span> <span class="text-xs text-zinc-500">(SameSite=Lax)</span><br /><span class="text-xs text-zinc-400">Merkt sich, welche Gruppe bzw. welchen Raum du zuletzt geöffnet hattest, damit du beim Wechsel zwischen Wiki, Dateien, Mitteilungen usw. im selben Bereich bleibst. Inhalt: die Gruppen-Kennung (z.&nbsp;B. <code>klasse10a.schule</code>) oder leer für „Persönlich". Lebensdauer: 365 Tage.</span></li>
+      <li><span class="font-medium">lernsax_theme</span> <span class="text-xs text-zinc-500">(SameSite=Lax)</span><br /><span class="text-xs text-zinc-400">Hell oder dunkel — als Cookie, damit serverseitig gerenderte Ansichten (z.&nbsp;B. der Dokument-Editor) im richtigen Design starten. Lebensdauer: 365 Tage.</span></li>
       <li><span class="font-medium">localStorage</span> <span class="text-xs text-zinc-500">(im Browser, kein Server)</span><br /><span class="text-xs text-zinc-400">Speichert nur deine Theme- und Navigations-Einstellungen. Wird nie an den Server geschickt.</span></li>
     </ul>
     <p class="mt-3 text-xs text-zinc-500">

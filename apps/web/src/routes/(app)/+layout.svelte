@@ -4,7 +4,7 @@
   import Icon from "$lib/Icon.svelte";
   import ComposeWindow from "$lib/ComposeWindow.svelte";
   import AvatarMenu from "$lib/AvatarMenu.svelte";
-  import { NAV_TABS, loadNavConfig, scopesFor, groupScope, tabById, mobileBottomTabs, type NavConfig } from "$lib/nav";
+  import { NAV_TABS, GROUP_COOKIE, loadNavConfig, scopesFor, groupScope, tabById, mobileBottomTabs, type NavConfig } from "$lib/nav";
   import { theme } from "$lib/themeStore.svelte";
 
   let { data, children } = $props();
@@ -63,7 +63,34 @@
     mobileNavOpen = false;
   });
 
+  /**
+   * Remember the picked group so the next section opens in the same space.
+   *
+   * `""` is stored deliberately: it means "Persönlich was chosen", which is a
+   * different thing from "never chose anything" and must not be re-filled by
+   * the server-side redirect.
+   */
+  function rememberGroup(login: string | null) {
+    document.cookie = `${GROUP_COOKIE}=${encodeURIComponent(login ?? "")}; path=/; max-age=31536000; SameSite=Lax`;
+  }
+
+  // Keep the cookie in step with the address bar — a link, the back button or
+  // a bookmark can change the group without going through `selectGroup`.
+  //
+  // Only a URL that actually names a group writes here. A missing `?group=` is
+  // ambiguous: on a page whose scopes exclude the remembered group it means
+  // "not applicable here", not "the user went back to Persönlich" — clearing
+  // on that would lose the choice as soon as someone opened Aufgaben. The one
+  // thing that does clear it is `selectGroup(null)`.
+  $effect(() => {
+    if (currentGroup) rememberGroup(currentGroup);
+  });
+
   function selectGroup(login: string | null) {
+    // Before navigating, not after: the server reads this cookie on the very
+    // request `goto` is about to make, so a late write would bounce a switch
+    // to Persönlich straight back to the old group.
+    rememberGroup(login);
     const u = new URL(page.url);
     if (login) u.searchParams.set("group", login);
     else u.searchParams.delete("group");

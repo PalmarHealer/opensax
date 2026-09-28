@@ -14,10 +14,11 @@ export const ROUTE_SCOPES: Record<string, Scope[]> = {
   "/tasks":     ["personal", "class"],
   "/calendar":  ["personal", "class"],
   // DaVinci is a separate server, so LernSax group scoping doesn't apply.
-  "/stundenplan": ["personal"],
+  "/timetable": ["personal"],
   "/board":     ["school", "class"],
   "/wiki":      ["school", "class"],
   "/forum":     ["school", "class"],
+  "/files":     ["personal", "school", "class"],
   "/notes":     ["personal"],
   "/mail":      ["personal"],
   "/messenger": ["personal"],
@@ -35,6 +36,23 @@ export function scopesFor(pathname: string): Scope[] | null {
     }
   }
   return best;
+}
+
+/**
+ * Cookie holding the group the user last picked, so the choice carries from
+ * one section to the next — going Wiki → Dateien stays in the same space.
+ *
+ * A cookie rather than localStorage because the server has to know it: the
+ * group lives in the URL, and the redirect that puts it there happens before
+ * any client code runs. An empty value is a real answer ("Persönlich"), which
+ * is why it is stored instead of simply clearing the cookie.
+ */
+export const GROUP_COOKIE = "lernsax_group";
+
+/** True for routes whose sidebar offers groups at all. */
+export function routeHasGroups(pathname: string): boolean {
+  const scopes = scopesFor(pathname);
+  return !!scopes && scopes.some((s) => s !== "personal");
 }
 
 export function groupScope(group: { type?: number | string | null }): Scope {
@@ -56,7 +74,7 @@ export const NAV_TABS: NavTab[] = [
   { id: "mail",      href: "/mail",      label: "Mail",          icon: "mail" },
   { id: "tasks",     href: "/tasks",     label: "Aufgaben",      icon: "list-check" },
   { id: "calendar",  href: "/calendar",  label: "Kalender",      icon: "calendar" },
-  { id: "stundenplan", href: "/stundenplan", label: "Stundenplan", icon: "table" },
+  { id: "timetable", href: "/timetable", label: "Stundenplan",  icon: "table" },
   { id: "board",     href: "/board",     label: "Mitteilungen",  icon: "speakerphone" },
   { id: "notes",     href: "/notes",     label: "Notizen",       icon: "sticky-note" },
   { id: "messenger", href: "/messenger", label: "Chat",          icon: "message-circle" },
@@ -67,6 +85,14 @@ export const NAV_TABS: NavTab[] = [
 ];
 
 const NAV_STORAGE_KEY = "lernsax.nav.v2";
+
+/**
+ * Tab ids that were renamed after people had already saved a layout. Without
+ * this the old id looks unknown, gets dropped, and the tab reappears at the
+ * end of the rail as if it were new.
+ */
+const RENAMED_TABS: Record<string, string> = { stundenplan: "timetable" };
+const migrateId = (id: string): string => RENAMED_TABS[id] ?? id;
 
 export type NavMode = "sidenav" | "topnav";
 
@@ -94,8 +120,8 @@ export function loadNavConfig(): NavConfig {
   try {
     const cfg = JSON.parse(raw) as Partial<NavConfig>;
     const known = new Set(NAV_TABS.map((t) => t.id));
-    const visible = (cfg.visible ?? []).filter((id) => known.has(id) && id !== "home");
-    const hidden = (cfg.hidden ?? []).filter((id) => known.has(id) && id !== "home");
+    const visible = (cfg.visible ?? []).map(migrateId).filter((id) => known.has(id) && id !== "home");
+    const hidden = (cfg.hidden ?? []).map(migrateId).filter((id) => known.has(id) && id !== "home");
     for (const t of NAV_TABS) {
       if (t.id === "home") continue;
       if (!visible.includes(t.id) && !hidden.includes(t.id)) visible.push(t.id);
