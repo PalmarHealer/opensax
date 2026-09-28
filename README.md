@@ -59,7 +59,7 @@ LERNSAX_WEB_SESSION_KEY=<32+ char secret>
 | **Notizen** | Kartengrid mit 6 Farben, Inline-Edit |
 | **Chat** | Discord-Style Bubbles · Konversationsliste mit Last-Message-Preview · Neuer Chat aus Gruppen-Mitgliedern (Online-Indikator + Suche) oder manueller Email · Aktiver Chat in URL `?with=` |
 | **Dateien** | Drive-Browser mit Drag&Drop-Upload · Quota-Bar · Click-anywhere auf Zeile · **Inline-Preview** für PDF/Bild/Text via Server-Proxy (kein Fullscreen) · Datei erscheint als "Sub-Ordner" im Breadcrumb · **Breadcrumb-Trenner aufklappbar** — jeder Pfeil zeigt die Ordner auf der Ebene der Krume dahinter (beim Datei-Pfeil: die Dateien im Ordner), Seitwärtswechsel in einem Klick · Forced-Save-Download · Mkdir/Rename/Delete |
-| **Stundenplan** (`/timetable`) | Wochenraster aus **DaVinci** (nicht LernSax) — Zeilen sind Stundenblöcke, gleiche Stunde liegt über alle Tage auf gleicher Höhe · **laufende Stunde** live hervorgehoben (Browser-Uhr, 30-s-Takt) · Vertretungen, Entfall und Verlegungen farbig markiert · geteilte Klassen nebeneinander · Auto-Filter auf die eigene Klasse/Lehrkraft · Zugang pro Nutzer in Settings, verschlüsselt gespeichert · auch über MCP abrufbar |
+| **Stundenplan** (`/timetable`) | Wochenraster aus **DaVinci** (nicht LernSax) — Zeilen sind Stundenblöcke, gleiche Stunde liegt über alle Tage auf gleicher Höhe · **laufende Stunde** live hervorgehoben mit Restzeit („noch 23 min", Browser-Uhr, 30-s-Takt) · am Wochenende öffnet die **kommende** Woche, nicht die abgelaufene · Vertretungen, Entfall und Verlegungen farbig markiert · geteilte Klassen nebeneinander · Auto-Filter auf die eigene Klasse/Lehrkraft · Zugang pro Nutzer in Settings, verschlüsselt gespeichert · auch über MCP abrufbar |
 | **Settings** | Tab-Rail mit URL-State `?tab=` · Profil mit allen LernSax-Feldern · Mail-Signatur · **Stundenplan-Zugang** (Endpoint/Login mit Verbindungstest) · **Layout-Picker** (Sidenav vs. Topnav) · **Drag&Drop Tab-Reordering** mit Live-Shift, Drop-into-Hidden-Zone |
 
 ### Stundenplan-Datenquellen
@@ -93,6 +93,32 @@ Responsive rein über CSS-Breakpoints, ohne JS-Viewport-Store: mobil (< `md`)
 Bottom-Tabs und Drill-down, ab `md` die Mehrspalten-Ansichten, ab `xl`
 zusätzlich die 240px-Seitenleisten. Ein JS-Store müsste beim SSR raten und
 würde bei Fehlbedienung die Hydration mitreißen.
+
+Wo eine Ansicht auf dem Handy nicht bloß enger, sondern *anders* sein muss,
+stehen beide Varianten im Markup und werden per CSS umgeschaltet — Stundenplan
+(Tagesliste statt Wochenraster), Kalender (Monatswähler mit Punkten plus
+Tagesagenda statt 6×7-Raster mit Titeln), Dateien (Name mit Datum/Größe als
+zweite Zeile statt fünf Spalten).
+
+### Mobile Navigation
+
+Die Tab-Leiste unten trägt bis zu fünf Apps in der vom Nutzer konfigurierten
+Reihenfolge; der letzte Platz gehört dem **Avatar**, nicht einem „Mehr"-Menü.
+Er öffnet dasselbe Profil-Popup wie am Desktop, dort aber zusätzlich mit
+
+- **Gruppen / Räume**, sofern die Route überhaupt in einer Gruppe arbeitet —
+  auf dem Handy gibt es keine Seitenleiste, die das sonst trüge, und
+- **Apps**, das die Schublade mit der vollständigen App-Liste aufzieht.
+
+Einstellungen sind aus der App-Schublade und der Tab-Leiste ausgeblendet: der
+Eintrag steht im Profil-Popup, das immer eine Berührung entfernt ist. Zweimal
+dasselbe Ziel nebeneinander wäre kein zusätzlicher Weg, nur eine zusätzliche
+Entscheidung.
+
+Die Schublade schließt bei jedem Griff daneben. Der Backdrop allein reicht
+dafür nicht — die Tab-Leiste liegt auf derselben z-Ebene und steht im DOM
+danach, fängt Klicks also ab; ein `pointerdown`-Listener am Dokument erwischt
+Leiste, Avatar und Backdrop gleichermaßen.
 
 Wechsel in Settings → Navigation. Custom-Order und Sichtbarkeit der Tabs werden in `localStorage` gespeichert.
 
@@ -160,7 +186,8 @@ Env-Vars (HTTP):
 
 #### Stundenplan über MCP
 
-`timetable_info` und `timetable_get` (Default: laufende Woche, dazu `from`/`to`,
+`timetable_info` und `timetable_get` (Default: laufende Woche — am Wochenende
+die kommende, dieselbe Regel wie in der Weboberfläche; dazu `from`/`to`,
 `class_code`, `teacher_code`, `room_code`, `changes_only`) lesen **denselben**
 DaVinci-Zugang, den die Weboberfläche unter Settings → Stundenplan gespeichert
 hat — ein Chat-Client kann die InfoServer-URL einer Schule schließlich nicht

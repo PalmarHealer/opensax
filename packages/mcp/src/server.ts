@@ -743,6 +743,20 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
     return d.toISOString().slice(0, 10);
   };
+  /**
+   * The week to answer with when the caller named no dates.
+   *
+   * On a weekend the running week is spent — "what does my week look like",
+   * asked on a Saturday, is about the days ahead, not the ones already gone.
+   * Same rule as the web UI, so both agree on what "this week" means.
+   */
+  const defaultWeekStart = (): string => {
+    const today = todayIso();
+    const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
+    if (dow === 6) return addDays(today, 2);
+    if (dow === 0) return addDays(today, 1);
+    return mondayOf(today);
+  };
 
   /** Resolve the calling identity to the stored timetable config, or explain why not. */
   const withTimetable = <T>(
@@ -799,11 +813,11 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
 
   server.tool(
     "timetable_get",
-    "Read the timetable / substitution plan for a date range. Defaults to the current week (Monday–Sunday). Entries carry the effective teachers and rooms with substitutions already folded in; `change` marks anything deviating from the regular plan (cancelled, substituted, moved, extra).",
+    "Read the timetable / substitution plan for a date range. Defaults to the current week (Monday–Sunday); on Saturdays and Sundays it defaults to the coming week instead. Entries carry the effective teachers and rooms with substitutions already folded in; `change` marks anything deviating from the regular plan (cancelled, substituted, moved, extra).",
     {
       ...CredsShape,
       from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
-        .describe("Inclusive start date, YYYY-MM-DD. Default: Monday of the current week."),
+        .describe("Inclusive start date, YYYY-MM-DD. Default: Monday of the current week — or of the coming week when asked on a Saturday or Sunday, since the running week is already spent."),
       to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
         .describe("Inclusive end date, YYYY-MM-DD. Default: `from` + 6 days."),
       class_code: z.string().optional().describe("Override the class configured in Settings."),
@@ -813,7 +827,7 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
     },
     async ({ email, password, from, to, class_code, teacher_code, room_code, changes_only }) =>
       withTimetable({ email, password }, async ({ user_id, cfg }) => {
-        const start = from ?? mondayOf(todayIso());
+        const start = from ?? defaultWeekStart();
         const end = to ?? addDays(start, 6);
         if (end < start) throw new Error("`to` liegt vor `from`.");
 

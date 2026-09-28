@@ -56,11 +56,44 @@
   // ── Mobile navigation (unified across sidenav/topnav preference) ──────────
   let mobileNavOpen = $state(false);
   // Up to 5 priority tabs for the bottom bar; rest live in the drawer.
-  const bottomTabs = $derived(mobileBottomTabs(visibleTabs, 5));
+  /**
+   * Was die App-Liste auf dem Handy zeigt.
+   *
+   * Einstellungen fliegen raus: der Avatar in der Leiste öffnet das Profil, und
+   * dort steht der Eintrag ohnehin. Zweimal dasselbe Ziel eine Fingerbreite
+   * voneinander entfernt ist kein zusätzlicher Weg, nur eine zusätzliche
+   * Entscheidung.
+   */
+  const mobileTabs = $derived(visibleTabs.filter((t) => t.id !== "settings"));
+  const bottomTabs = $derived(mobileBottomTabs(mobileTabs, 5));
   // Close the off-canvas drawer whenever the route changes.
   $effect(() => {
     page.url.pathname; // track
     mobileNavOpen = false;
+  });
+
+  /**
+   * …und bei jedem Griff daneben.
+   *
+   * Der Backdrop allein reicht nicht: die Tab-Leiste liegt auf derselben
+   * z-Ebene und steht im DOM danach, fängt Klicks also ab. Ein Listener am
+   * Dokument erwischt Leiste, Avatar und Backdrop gleichermaßen. `pointerdown`
+   * statt `click`, damit ein Tippen auf die Leiste die Schublade schon
+   * schließt, bevor die Navigation greift.
+   */
+  let drawerEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!mobileNavOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (drawerEl && !drawerEl.contains(e.target as Node)) mobileNavOpen = false;
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") mobileNavOpen = false; };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
   });
 
   /**
@@ -233,17 +266,13 @@
   ></button>
 {/if}
 <aside
+  bind:this={drawerEl}
   class="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-zinc-800 bg-zinc-950 transition-transform duration-200 ease-out md:hidden
     {mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}"
   aria-hidden={!mobileNavOpen}
 >
   <div class="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5">
-    <a href="/" class="flex items-center gap-2">
-      <span class="grid h-8 w-8 place-items-center rounded-lg bg-indigo-500/10 text-indigo-300">
-        <Icon name="home" size={16} />
-      </span>
-      <span class="text-sm font-semibold tracking-tight">OpenSax</span>
-    </a>
+    <span class="text-sm font-semibold tracking-tight">Apps</span>
     <button
       type="button"
       class="grid h-9 w-9 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-900"
@@ -263,7 +292,7 @@
       <Icon name="home" size={20} />
       Übersicht
     </a>
-    {#each visibleTabs as item}
+    {#each mobileTabs as item}
       <a
         href={item.href}
         class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition
@@ -274,30 +303,7 @@
       </a>
     {/each}
 
-    {#if showSidebar}
-      <div class="my-2 h-px bg-zinc-800"></div>
-      <p class="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-zinc-500">Gruppen / Räume</p>
-      {#if showPersonal}
-        <button
-          class="mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition
-            {currentGroup === null ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-900'}"
-          onclick={() => selectGroup(null)}
-        ><span class="truncate">Persönlich</span></button>
-      {/if}
-      {#each filteredGroups as g}
-        <button
-          class="block w-full truncate rounded-lg px-3 py-2 text-left text-sm transition
-            {currentGroup === g.login ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-900'}"
-          onclick={() => selectGroup(g.login)}
-          title={`${g.name}\n${g.login}`}
-        >{g.name}</button>
-      {/each}
-    {/if}
   </nav>
-
-  <div class="border-t border-zinc-800 px-3 py-2.5">
-    <AvatarMenu displayName={data.displayName} email={data.email} seed={data.user?.login ?? data.email} placement="top-right" />
-  </div>
 </aside>
 
 <!-- Bottom tab bar (YouTube-style) -->
@@ -314,14 +320,24 @@
       <span class="max-w-full truncate px-0.5">{item.label}</span>
     </a>
   {/each}
-  <button
-    type="button"
-    class="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] text-zinc-400"
-    onclick={() => (mobileNavOpen = true)}
-  >
-    <Icon name="dots" size={22} />
-    <span>Mehr</span>
-  </button>
+  <!-- Letzter Platz: das Profil, nicht „Mehr". Von dort führen der Raumwechsel
+       und die App-Liste weiter — auf dem Handy gibt es keine Seitenleiste, die
+       das sonst trüge. -->
+  <div class="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] text-zinc-400">
+    <AvatarMenu
+      displayName={data.displayName}
+      email={data.email}
+      seed={data.user?.login ?? data.email}
+      size={22}
+      placement="top-right"
+      groups={showGroupSection ? filteredGroups : undefined}
+      currentGroup={currentGroup}
+      showPersonal={showPersonal}
+      onselectgroup={selectGroup}
+      onapps={() => (mobileNavOpen = true)}
+    />
+    <span>Profil</span>
+  </div>
 </nav>
 
 <ComposeWindow />
