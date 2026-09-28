@@ -1,7 +1,3 @@
-Forum und Wiki posten geht nicht (man kann auch keine Notizen erstellen).
-
-Chat geht nicht (returned 500 Server error)
-
 # OpenSax
 
 Modernes Webinterface + lokaler MCP-Server für die LernSax/WebWeaver-API.
@@ -226,6 +222,13 @@ Stateless TypeScript-Wrapper:
 
 Im Wesentlichen feature-complete für den Single-User-Self-Hosting-Use-Case.
 Offen:
+- **Wiki schreiben und auflisten** — die dokumentierte API kennt für das
+  `wiki`-Objekt nur `get_page`. `get_entries`/`add_entry`/`set_entry` gibt es
+  dort nicht, der Server antwortet mit `Unknown command`. Die Seite kann
+  deshalb weder Seiten auflisten noch anlegen; das ist keine Lücke im Code,
+  sondern eine in der API.
+- **Forum-Beiträge löschen** braucht `forum_admin`; mit `forum_write` kann man
+  posten, aber nichts zurücknehmen.
 - **OnlyOffice-Integration** für Datei-Bearbeitung (braucht Reverse-Engineering der LernSax-OnlyOffice-Konfiguration)
 - **Klassen-/Gruppen-Beitritt mit Passwort** (LernSax-API-Endpoint nicht öffentlich erreichbar)
 - **Mail-Filterregeln** (gleiche Story — API nicht exposed)

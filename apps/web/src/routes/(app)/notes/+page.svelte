@@ -15,21 +15,27 @@
     return rights.includes("notes_write") || rights.includes("notes");
   });
 
+  // LernSax speichert die Farbe als Index, nicht als Name. Die Palette folgt
+  // deshalb derselben Reihenfolge wie bei den Mitteilungen — ein durchgereichtes
+  // "yellow" quittierte der Server mit `Value of parameter "color" out of range`.
   const COLORS = [
-    { key: "yellow", bg: "bg-amber-300/15", border: "border-amber-400/40", swatch: "bg-amber-300" },
-    { key: "rose", bg: "bg-rose-400/15", border: "border-rose-400/40", swatch: "bg-rose-400" },
-    { key: "violet", bg: "bg-violet-400/15", border: "border-violet-400/40", swatch: "bg-violet-400" },
-    { key: "sky", bg: "bg-sky-400/15", border: "border-sky-400/40", swatch: "bg-sky-400" },
-    { key: "emerald", bg: "bg-emerald-400/15", border: "border-emerald-400/40", swatch: "bg-emerald-400" },
-    { key: "zinc", bg: "bg-zinc-700/30", border: "border-zinc-700", swatch: "bg-zinc-500" },
+    { id: 0, label: "Standard", bg: "bg-zinc-700/30",     border: "border-zinc-700",       swatch: "bg-zinc-500" },
+    { id: 1, label: "Rot",      bg: "bg-rose-400/15",     border: "border-rose-400/40",    swatch: "bg-rose-400" },
+    { id: 2, label: "Orange",   bg: "bg-orange-400/15",   border: "border-orange-400/40",  swatch: "bg-orange-400" },
+    { id: 3, label: "Gelb",     bg: "bg-amber-300/15",    border: "border-amber-400/40",   swatch: "bg-amber-300" },
+    { id: 4, label: "Grün",     bg: "bg-emerald-400/15",  border: "border-emerald-400/40", swatch: "bg-emerald-400" },
+    { id: 5, label: "Blau",     bg: "bg-sky-400/15",      border: "border-sky-400/40",     swatch: "bg-sky-400" },
+    { id: 6, label: "Lila",     bg: "bg-violet-400/15",   border: "border-violet-400/40",  swatch: "bg-violet-400" },
+    { id: 7, label: "Pink",     bg: "bg-pink-400/15",     border: "border-pink-400/40",    swatch: "bg-pink-400" },
   ];
-  function colorOf(key: string | undefined) {
-    return COLORS.find((c) => c.key === key) ?? COLORS[5]!;
+  function colorOf(id: number | string | undefined) {
+    const n = typeof id === "string" ? Number.parseInt(id, 10) : id;
+    return COLORS[n ?? 0] ?? COLORS[0]!;
   }
 
   let editingId = $state<string | null>(null);
   let composing = $state(false);
-  let newColor = $state("yellow");
+  let newColor = $state(3);
 </script>
 
 <div class="grid h-full" style="grid-template-rows: auto 1fr">
@@ -56,7 +62,7 @@
       <form
         method="POST"
         action="?/create"
-        use:enhance={() => async ({ update }) => { await update(); composing = false; newColor = "yellow"; }}
+        use:enhance={() => async ({ update }) => { await update(); composing = false; newColor = 3; }}
         class="mx-auto mb-6 max-w-xl rounded-2xl border {colorOf(newColor).border} {colorOf(newColor).bg} p-4"
       >
         <input type="hidden" name="color" value={newColor} />
@@ -78,9 +84,9 @@
             {#each COLORS as c}
               <button
                 type="button"
-                onclick={() => (newColor = c.key)}
-                class="h-5 w-5 rounded-full {c.swatch} ring-offset-2 ring-offset-zinc-950 {newColor === c.key ? 'ring-2 ring-zinc-300' : ''}"
-                aria-label={c.key}
+                onclick={() => (newColor = c.id)}
+                class="h-5 w-5 rounded-full {c.swatch} ring-offset-2 ring-offset-zinc-950 {newColor === c.id ? 'ring-2 ring-zinc-300' : ''}"
+                aria-label={c.label}
               ></button>
             {/each}
           </div>
@@ -116,7 +122,7 @@
                 use:enhance={() => async ({ update }) => { await update(); editingId = null; }}
               >
                 <input type="hidden" name="id" value={n.id} />
-                <input type="hidden" name="color" value={n.color ?? "yellow"} />
+                <input type="hidden" name="color" value={n.color ?? 0} />
                 <input type="hidden" name="group" value={groupValue} />
                 <input
                   name="title"

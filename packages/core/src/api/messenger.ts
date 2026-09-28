@@ -32,8 +32,17 @@ export class MessengerApi {
     const r = await this.session.call("read_quick_messages", {}, this.focus());
     return (r.messages as QuickMessage[]) ?? [];
   }
-  async history(params: { start_id?: number; group_by_chat?: boolean } = {}): Promise<QuickMessage[]> {
-    const r = await this.session.call("get_history", params, this.focus());
+  /**
+   * `get_history` kennt laut API-Doku nur `start_id` und `export_session_file`.
+   * Ein zusätzlich durchgereichtes `group_by_chat` lehnt der Server ab — die
+   * Gruppierung nach Gesprächspartner passiert ohnehin bei uns.
+   */
+  async history(params: { start_id?: number } = {}): Promise<QuickMessage[]> {
+    const r = await this.session.call(
+      "get_history",
+      params.start_id === undefined ? {} : { start_id: params.start_id },
+      this.focus(),
+    );
     return (r.messages as QuickMessage[]) ?? [];
   }
   async block(login: string): Promise<void> {

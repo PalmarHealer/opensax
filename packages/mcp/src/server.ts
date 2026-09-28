@@ -397,14 +397,14 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
   server.tool(
     "notes_create",
     "Create a note.",
-    { ...CredsShape, group: z.string().optional(), title: z.string().optional(), text: z.string(), color: z.string().optional() },
+    { ...CredsShape, group: z.string().optional(), title: z.string().optional(), text: z.string(), color: z.number().int().min(0).max(7).optional().describe("Farbindex 0–7 (0 = Standard), kein Farbname.") },
     async ({ email, password, group, ...entry }) =>
       withClient({ email, password }, async (c) => ok(await c.notes.create(group, entry))),
   );
   server.tool(
     "notes_update",
     "Edit a note.",
-    { ...CredsShape, group: z.string().optional(), id: z.string(), title: z.string().optional(), text: z.string().optional(), color: z.string().optional() },
+    { ...CredsShape, group: z.string().optional(), id: z.string(), title: z.string().optional(), text: z.string().optional(), color: z.number().int().min(0).max(7).optional().describe("Farbindex 0–7 (0 = Standard), kein Farbname.") },
     async ({ email, password, group, id, ...patch }) =>
       withClient({ email, password }, async (c) => ok(await c.notes.update(group, id, patch))),
   );
@@ -440,7 +440,10 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
   server.tool(
     "chat_history",
     "Fetch message history.",
-    { ...CredsShape, start_id: z.number().int().optional(), group_by_chat: z.boolean().default(true) },
+    // Kein `group_by_chat`: das kennt `get_history` nicht, und weil es hier mit
+    // `.default(true)` immer mitgeschickt wurde, hat der Server jeden Aufruf
+    // abgelehnt — das Tool war damit dauerhaft kaputt.
+    { ...CredsShape, start_id: z.number().int().optional() },
     async ({ email, password, ...rest }) =>
       withClient({ email, password }, async (c) => ok(await c.messenger.history(rest))),
   );
@@ -615,7 +618,7 @@ export function buildServer(cache: SessionCache = defaultCache(), defaultCreds?:
   server.tool(
     "forum_post",
     "Post a forum entry.",
-    { ...CredsShape, group: z.string(), title: z.string(), text: z.string(), parent_id: z.string().optional() },
+    { ...CredsShape, group: z.string(), title: z.string(), text: z.string(), parent_id: z.string().optional().describe("Elternbeitrag; weglassen für ein neues Thema."), icon: z.number().int().min(0).max(5).optional().describe("Symbol des Beitrags, 0–5 (Standard 0).") },
     async ({ email, password, group, ...entry }) =>
       withClient({ email, password }, async (c) => ok(await c.forum.post(group, entry))),
   );

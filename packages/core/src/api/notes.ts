@@ -4,7 +4,8 @@ export interface NoteEntry {
   id: string;
   title?: string;
   text: string;
-  color?: string;
+  /** Farbindex, wie ihn der Server speichert — kein Name. */
+  color?: number;
   created?: number;
   modified?: number;
   [k: string]: unknown;
@@ -21,11 +22,25 @@ export class NotesApi {
     const r = await this.session.call("get_entries", {}, this.focus(group));
     return (r.entries as NoteEntry[]) ?? [];
   }
-  async create(group: string | undefined, entry: { title?: string; text: string; color?: string }): Promise<NoteEntry> {
-    const r = await this.session.call("add_entry", entry, this.focus(group));
+  /**
+   * `title` ist laut API-Doku Pflicht, auch wenn eine Notiz ohne Überschrift
+   * sinnvoll ist — fehlt der Schlüssel, antwortet der Server mit
+   * `Parameter "title" required`. Er wird deshalb immer gesendet, notfalls leer.
+   *
+   * `color` ist ein Index, kein Name: ein durchgereichtes "yellow" quittiert der
+   * Server mit `Value of parameter "color" out of range`. Undefiniert lassen wir
+   * ihn weg, statt eine Null zu erfinden.
+   */
+  async create(
+    group: string | undefined,
+    entry: { title?: string; text: string; color?: number },
+  ): Promise<NoteEntry> {
+    const params: Record<string, unknown> = { title: entry.title ?? "", text: entry.text };
+    if (typeof entry.color === "number") params.color = entry.color;
+    const r = await this.session.call("add_entry", params, this.focus(group));
     return r as NoteEntry;
   }
-  async update(group: string | undefined, id: string, patch: Partial<{ title: string; text: string; color: string }>): Promise<NoteEntry> {
+  async update(group: string | undefined, id: string, patch: Partial<{ title: string; text: string; color: number }>): Promise<NoteEntry> {
     const r = await this.session.call("set_entry", { id, ...patch }, this.focus(group));
     return r as NoteEntry;
   }

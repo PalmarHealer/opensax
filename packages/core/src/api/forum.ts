@@ -30,8 +30,27 @@ export class ForumApi {
     const r = await this.session.call("get_entry", { id }, this.focus(group));
     return ((r.entry as ForumEntry) ?? (r as ForumEntry));
   }
-  async post(group: string, entry: { title: string; text: string; parent_id?: string }): Promise<ForumEntry> {
-    const r = await this.session.call("add_entry", entry, this.focus(group));
+  /**
+   * `parent_id` und `icon` sind laut API-Doku beide Pflicht — auch für ein neues
+   * Thema, das per Definition keinen Elternbeitrag hat. Fehlen sie, antwortet
+   * der Server mit `Parameter "parent_id" required` und, sobald das behoben ist,
+   * mit derselben Meldung für `icon`. "0" steht für die Wurzel, Icon 0 für das
+   * Standardsymbol (die Doku lässt 0–5 zu).
+   */
+  async post(
+    group: string,
+    entry: { title: string; text: string; parent_id?: string; icon?: number },
+  ): Promise<ForumEntry> {
+    const r = await this.session.call(
+      "add_entry",
+      {
+        title: entry.title,
+        text: entry.text,
+        parent_id: entry.parent_id ?? "0",
+        icon: entry.icon ?? 0,
+      },
+      this.focus(group),
+    );
     return r as ForumEntry;
   }
   async remove(group: string, id: string): Promise<void> {

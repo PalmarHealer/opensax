@@ -17,6 +17,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 const groupFromForm = (data: FormData): string | undefined =>
   data.get("group")?.toString() || undefined;
 
+/** Der Farbindex kommt als Formularfeld, also als Text — die API will eine Zahl. */
+const colorFromForm = (data: FormData): number | undefined => {
+  const raw = data.get("color")?.toString();
+  if (!raw) return undefined;
+  const n = Number.parseInt(raw, 10);
+  return Number.isNaN(n) ? undefined : n;
+};
+
 export const actions: Actions = {
   create: async ({ locals, request }) => {
     const c = locals.client!;
@@ -27,7 +35,7 @@ export const actions: Actions = {
       await c.notes.create(groupFromForm(data), {
         title: data.get("title")?.toString() || undefined,
         text,
-        color: data.get("color")?.toString() || undefined,
+        color: colorFromForm(data),
       });
     } catch (e) { return fail(403, { error: (e as Error).message }); }
     return { ok: true };
@@ -41,7 +49,7 @@ export const actions: Actions = {
       await c.notes.update(groupFromForm(data), id, {
         title: data.get("title")?.toString() || undefined,
         text: data.get("text")?.toString() || undefined,
-        color: data.get("color")?.toString() || undefined,
+        color: colorFromForm(data),
       });
     } catch (e) { return fail(403, { error: (e as Error).message }); }
     return { ok: true };
