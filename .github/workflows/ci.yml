@@ -52,87 +52,84 @@ jobs:
           fi
 
   docker:
-    name: Docker images build
+    name: Docker images
     runs-on: ubuntu-latest
     needs: build
+    # PRs only prove the Dockerfiles build; pushes to main also publish the
+    # images to GHCR, which is what the deployment pulls.
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # metadata-action lowercases the owner (GHCR rejects uppercase) and adds
+      # the org.opencontainers.image.source label that links the package to
+      # this repo.
+      - name: Web image metadata
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/opensax-web
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+
       - name: Build web image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
-          push: false
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
+
+      - name: MCP image metadata
+        id: meta-mcp
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/opensax-mcp
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
 
       - name: Build mcp image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: packages/mcp/Dockerfile
-          push: false
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta-mcp.outputs.tags }}
+          labels: ${{ steps.meta-mcp.outputs.labels }}
           cache-from: type=gha,scope=mcp
           cache-to: type=gha,scope=mcp,mode=max
 
-  build-on-server:
-    name: Build images on server
-    runs-on: ubuntu-latest
-    needs: docker
-    # Only on direct pushes to main (not PRs from forks). Skip if any of the
-    # SSH secrets are missing — lets contributors fork without breaking CI.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Check deploy secrets
-        id: check
+      # Optional: tell Portainer to pull the fresh images and recreate the
+      # stack. Without the secret the images are just published and the
+      # stack picks them up on the next manual "Pull and redeploy".
+      - name: Trigger Portainer redeploy
+        if: env.PUBLISH == 'true'
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_KEY:  ${{ secrets.DEPLOY_SSH_KEY }}
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
         run: |
-          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ -z "$DEPLOY_KEY" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::DEPLOY_HOST/USER/SSH_KEY not set — skipping server build"
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+          if [ -z "$PORTAINER_WEBHOOK_URL" ]; then
+            echo "::notice::PORTAINER_WEBHOOK_URL not set — skipping redeploy"
+            exit 0
           fi
-
-      - name: Build & prune on server
-        if: steps.check.outputs.configured == 'true'
-        uses: appleboy/ssh-action@v1
-        with:
-          host:     ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key:      ${{ secrets.DEPLOY_SSH_KEY }}
-          port:     ${{ secrets.DEPLOY_PORT || 22 }}
-          # First-time build can blow past the 10-min default while pnpm/Vite
-          # warm up.
-          command_timeout: 30m
-          script_stop: true
-          script: |
-            set -euo pipefail
-            cd "${{ secrets.DEPLOY_PATH }}"
-
-            # Refresh source. `fetch && reset` instead of `pull` so a dirty
-            # working tree on the server doesn't block the build.
-            git fetch --quiet origin main
-            git reset --hard origin/main
-
-            # Build the two services as standalone tagged images. Portainer's
-            # compose references them by `image: opensax-web|mcp:latest`, so
-            # we don't go through `docker compose build` here — that would
-            # need the full env-var set the running stack uses, even just to
-            # build.
-            docker build --pull -f apps/web/Dockerfile        -t opensax-web:latest .
-            docker build --pull -f packages/mcp/Dockerfile    -t opensax-mcp:latest .
-
-            # Cleanup — drop dangling images from the previous build and trim
-            # the builder cache. Conservative: only `--filter dangling=true`,
-            # never `-a`, so still-tagged images of other stacks stay put.
-            docker image prune -f --filter dangling=true
-            docker builder prune -f --keep-storage 2GB || true
+          curl -fsS -X POST "$PORTAINER_WEBHOOK_URL"

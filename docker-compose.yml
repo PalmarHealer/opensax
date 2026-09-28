@@ -1,8 +1,8 @@
 services:
   lernsax-web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+    # Built and pushed by CI on every push to main. Pin OPENSAX_TAG to a
+    # sha-<commit> tag to roll back.
+    image: ghcr.io/palmarhealer/opensax-web:${OPENSAX_TAG:-latest}
     container_name: lernsax-web
     restart: unless-stopped
     environment:
@@ -29,9 +29,7 @@ services:
       - lernsax-web-data:/app/data
 
   lernsax-mcp:
-    build:
-      context: .
-      dockerfile: packages/mcp/Dockerfile
+    image: ghcr.io/palmarhealer/opensax-mcp:${OPENSAX_TAG:-latest}
     container_name: lernsax-mcp
     restart: unless-stopped
     environment:

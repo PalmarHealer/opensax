@@ -2,6 +2,13 @@
 
 This stack is three Docker containers — a SvelteKit web app, an MCP HTTP server, and an OnlyOffice DocumentServer — meant to sit behind a reverse proxy that terminates TLS.
 
+The web and MCP images are built by CI and published to GHCR on every push to `main`:
+
+- `ghcr.io/palmarhealer/opensax-web`
+- `ghcr.io/palmarhealer/opensax-mcp`
+
+Each push is tagged `latest` and `sha-<full commit sha>`. `docker-compose.yml` runs `${OPENSAX_TAG:-latest}`; set `OPENSAX_TAG` to a `sha-…` tag to pin or roll back. If the packages are private, log the host in once with `docker login ghcr.io` (a PAT with `read:packages`). To build from source instead, use `docker-compose.local.yml`.
+
 ## Architecture
 
 | Service       | Container          | Internal port | Purpose                                              |
@@ -33,7 +40,7 @@ So a typical deployment uses two public hostnames:
    LERNSAX_PROXY_URL=                             # optional, see "German egress"
    ```
 
-2. `docker compose up -d --build`
+2. `docker compose up -d`
 
 3. First run pulls OnlyOffice (~1.5 GB). You can pre-pull with `docker compose pull onlyoffice`.
 
@@ -157,9 +164,10 @@ Sessions and connections survive `docker compose down`/`up`; deleting the volume
 ## Updating
 
 ```bash
-git pull
-docker compose build lernsax-web lernsax-mcp
+docker compose pull lernsax-web lernsax-mcp
 docker compose up -d
 ```
 
-`onlyoffice` only needs a rebuild when you bump the image tag in `docker-compose.yml`.
+In Portainer: *Pull and redeploy* on the stack. To automate it, enable the stack's webhook and store its URL as the `PORTAINER_WEBHOOK_URL` repository secret — CI then calls it after pushing new images.
+
+`onlyoffice` only changes when you bump its image tag in `docker-compose.yml`.
