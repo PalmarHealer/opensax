@@ -156,6 +156,22 @@
     };
   });
 
+  /**
+   * Keep the end of the breadcrumb in view.
+   *
+   * The strip scrolls horizontally once the path gets deep, and it starts at
+   * the left — which on a phone shows "Root ›" and hides the folder you are
+   * actually in. Scrolling to the end puts the current folder on screen, where
+   * a desktop reader gets it for free.
+   */
+  let crumbStrip = $state<HTMLDivElement | null>(null);
+  $effect(() => {
+    data.folderId;
+    data.file?.id;
+    const el = crumbStrip;
+    if (el) el.scrollLeft = el.scrollWidth;
+  });
+
   /** Files next to the one that's open, so the last separator switches documents. */
   const fileSiblings = $derived(
     data.children.filter((e) => e.type === "file").map((e) => ({ id: e.id, name: e.name, file: true })),
@@ -237,8 +253,13 @@
   }
 </script>
 
+<!-- `grid-cols-1` (= minmax(0,1fr)) ist hier tragend: ohne Spaltenangabe legt CSS
+     eine implizite `auto`-Spalte an, die auf die max-content-Breite der Tabelle
+     wächst. Auf dem Handy hat das den Header mitgezogen, bis „Ordner" und
+     „Hochladen" rechts aus dem Bild geschoben waren. Die Tabelle scrollt
+     stattdessen in ihrem eigenen Container. -->
 <div
-  class="grid h-full"
+  class="grid h-full grid-cols-1"
   style="grid-template-rows: auto 1fr"
   ondragenter={(e) => { e.preventDefault(); if (folderCanWrite && !data.file) dragActive = true; }}
   ondragover={(e) => { e.preventDefault(); }}
@@ -247,10 +268,10 @@
   role="region"
   aria-label="Dateibrowser"
 >
-  <header class="flex items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/80 px-6 py-3">
-    <div class="flex min-w-0 items-center gap-1 overflow-x-auto">
+  <header class="flex items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-950/80 px-4 py-3 md:gap-3 md:px-6">
+    <div bind:this={crumbStrip} class="flex min-w-0 items-center gap-1 overflow-x-auto">
       <button
-        class="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+        class="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
         onclick={() => navTo("/")}
       >
         <Icon name="folder" size={14} />
@@ -279,7 +300,7 @@
             />
           </button>
           <button
-            class="truncate rounded-md px-2 py-1 text-sm hover:bg-zinc-900 {!data.file && i === data.breadcrumb.length - 1 ? 'font-medium text-zinc-100' : 'text-zinc-400 hover:text-zinc-100'}"
+            class="max-w-[12rem] shrink-0 truncate rounded-md px-2 py-1 text-sm hover:bg-zinc-900 {!data.file && i === data.breadcrumb.length - 1 ? 'font-medium text-zinc-100' : 'text-zinc-400 hover:text-zinc-100'}"
             onclick={() => navTo(b.id)}
             title={b.name}
           >{b.name}</button>
@@ -305,7 +326,7 @@
             size={16}
           />
         </button>
-        <span class="flex items-center gap-1 truncate rounded-md px-2 py-1 text-sm font-medium text-zinc-100" title={data.file.name}>
+        <span class="flex max-w-[14rem] shrink-0 items-center gap-1 truncate rounded-md px-2 py-1 text-sm font-medium text-zinc-100" title={data.file.name}>
           <Icon name="file" size={14} />
           {data.file.name}
         </span>
@@ -315,7 +336,7 @@
       {/if}
     </div>
 
-    <div class="flex shrink-0 items-center gap-3">
+    <div class="flex shrink-0 items-center gap-1.5 md:gap-3">
       {#if quotaLimit > 0 && !data.file}
         <div class="hidden items-center gap-2 text-xs text-zinc-500 md:flex" title="{fmtSize(quotaUsed)} / {fmtSize(quotaLimit)}">
           <div class="h-1.5 w-24 overflow-hidden rounded-full bg-zinc-800">
@@ -328,23 +349,26 @@
         {#if isOffice(data.file.name)}
           <button
             onclick={() => openOffice(data.file!.id, "edit")}
-            class="flex items-center gap-1.5 rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
+            class="flex items-center gap-1.5 rounded-md bg-indigo-500 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-400 md:px-3"
+            aria-label="Bearbeiten"
           >
-            <Icon name="edit" size={16} /> Bearbeiten
+            <Icon name="edit" size={16} /><span class="hidden sm:inline">Bearbeiten</span>
           </button>
         {/if}
         <a
           href={downloadUrl(data.file.id)}
-          class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
+          class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-sm hover:bg-zinc-800 md:px-3"
+          aria-label="Download"
         >
-          <Icon name="download" size={16} /> Download
+          <Icon name="download" size={16} /><span class="hidden sm:inline">Download</span>
         </a>
       {:else if folderCanWrite}
         <button
-          class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
+          class="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-sm hover:bg-zinc-800 md:px-3"
           onclick={() => { mkdirOpen = true; mkdirName = ""; }}
+          aria-label="Ordner anlegen"
         >
-          <Icon name="folder-plus" size={16} /> Ordner
+          <Icon name="folder-plus" size={16} /><span class="hidden sm:inline">Ordner</span>
         </button>
         <form
           method="POST"
@@ -356,8 +380,8 @@
         >
           <input type="hidden" name="parent_id" value={data.folderId} />
           <input type="hidden" name="group" value={groupValue} />
-          <label class="flex cursor-pointer items-center gap-1.5 rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400">
-            <Icon name="upload" size={16} /> Hochladen
+          <label class="flex cursor-pointer items-center gap-1.5 rounded-md bg-indigo-500 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-400 md:px-3" aria-label="Hochladen">
+            <Icon name="upload" size={16} /><span class="hidden sm:inline">Hochladen</span>
             <input
               type="file"
               name="file"
@@ -441,22 +465,22 @@
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
             <tr class="border-b border-zinc-800">
-              <th class="px-6 py-2 text-left font-medium">
+              <th class="px-4 py-2 text-left font-medium md:px-6">
                 <button class="inline-flex items-center gap-1 hover:text-zinc-200" onclick={() => toggleSort("name")}>
                   Name {#if sortBy === "name"}<Icon name="chevron-down" size={12} class={sortDir === "asc" ? "rotate-180" : ""} />{/if}
                 </button>
               </th>
-              <th class="px-6 py-2 text-left font-medium">
+              <th class="hidden px-6 py-2 text-left font-medium md:table-cell">
                 <button class="inline-flex items-center gap-1 hover:text-zinc-200" onclick={() => toggleSort("modified")}>
                   Geändert {#if sortBy === "modified"}<Icon name="chevron-down" size={12} class={sortDir === "asc" ? "rotate-180" : ""} />{/if}
                 </button>
               </th>
-              <th class="px-6 py-2 text-right font-medium">
+              <th class="hidden px-6 py-2 text-right font-medium md:table-cell">
                 <button class="inline-flex items-center gap-1 hover:text-zinc-200" onclick={() => toggleSort("size")}>
                   Größe {#if sortBy === "size"}<Icon name="chevron-down" size={12} class={sortDir === "asc" ? "rotate-180" : ""} />{/if}
                 </button>
               </th>
-              <th class="px-6 py-2 text-right font-medium">Eigentümer</th>
+              <th class="hidden px-6 py-2 text-right font-medium md:table-cell">Eigentümer</th>
               <th class="w-12"></th>
             </tr>
           </thead>
@@ -483,22 +507,29 @@
                 aria-label={e.name}
                 title={isLocked ? "Kein Zugriff" : e.name}
               >
-                <td class="px-6 py-2.5">
-                  <span class="flex items-center gap-2">
-                    <Icon name={e.type === "folder" ? "folder" : "file"} size={18} class={e.type === "folder" ? "text-amber-400" : "text-zinc-400"} />
-                    <span class={e.type === "folder" ? "font-medium" : ""}>{e.name}</span>
+                <td class="min-w-0 px-4 py-2.5 md:px-6">
+                  <span class="flex items-start gap-2">
+                    <Icon name={e.type === "folder" ? "folder" : "file"} size={18} class="mt-0.5 shrink-0 {e.type === 'folder' ? 'text-amber-400' : 'text-zinc-400'}" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block break-words {e.type === 'folder' ? 'font-medium' : ''}">{e.name}</span>
+                      <!-- Was die ausgeblendeten Spalten trugen, steht auf dem
+                           Handy hier — sonst wäre es schlicht weg. -->
+                      <span class="mt-0.5 block text-xs text-zinc-500 md:hidden">
+                        {fmtDate(e.modified?.date)} · {e.type === "folder" ? fmtSize(e.aggregation?.size) : fmtSize(e.size)}
+                      </span>
+                    </span>
                     {#if e.versions && e.versions.length > 1}
-                      <span class="rounded-full border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400" title="{e.versions.length} Versionen">
+                      <span class="mt-0.5 shrink-0 rounded-full border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400" title="{e.versions.length} Versionen">
                         v{e.versions.length}
                       </span>
                     {/if}
                   </span>
                 </td>
-                <td class="px-6 py-2.5 text-zinc-400">{fmtDate(e.modified?.date)}</td>
-                <td class="px-6 py-2.5 text-right text-zinc-400">
+                <td class="hidden px-6 py-2.5 text-zinc-400 md:table-cell">{fmtDate(e.modified?.date)}</td>
+                <td class="hidden px-6 py-2.5 text-right text-zinc-400 md:table-cell">
                   {e.type === "folder" ? fmtSize(e.aggregation?.size) : fmtSize(e.size)}
                 </td>
-                <td class="px-6 py-2.5 text-right text-zinc-400">
+                <td class="hidden px-6 py-2.5 text-right text-zinc-400 md:table-cell">
                   <span class="truncate" title={e.created?.user?.login ?? ""} onclick={(ev) => ev.stopPropagation()} role="presentation"><PersonChip name={e.created?.user?.name_hr} login={e.created?.user?.login} /></span>
                 </td>
                 <td class="px-2 py-2.5 text-right" onclick={(ev) => ev.stopPropagation()} onkeydown={(ev) => ev.stopPropagation()}>

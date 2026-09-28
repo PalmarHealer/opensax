@@ -81,6 +81,20 @@
   });
   /** Only meaningful while today is one of the columns on screen. */
   const showsToday = $derived(todayLocal >= data.weekStart && todayLocal <= data.weekEnd);
+  /**
+   * Minutes left in the running block.
+   *
+   * More useful than a bare "jetzt": the question in a corridor is not whether
+   * a lesson is running but how long it still is. Rounded up so the last
+   * seconds read "noch 1 min" rather than "noch 0 min".
+   */
+  const remainingMin = $derived.by(() => {
+    if (!now || currentBlock < 0) return null;
+    const end = blocks[currentBlock]?.end;
+    if (!end) return null;
+    const mins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    return Math.max(1, Math.ceil(toMinutes(end) - mins));
+  });
   const isNow = (date: string, bi: number) => date === todayLocal && bi === currentBlock;
 
   /** Tailwind accents per change type — cancelled reads as "gone", not "new". */
@@ -102,7 +116,7 @@
   };
 </script>
 
-{#snippet lesson(e: DaVinciEntry)}
+{#snippet lesson(e: DaVinciEntry, running = false)}
   <div
     class="h-full min-w-0 overflow-hidden rounded-xl border p-2.5 {e.change
       ? CHANGE_STYLE[e.change.type]
@@ -118,7 +132,11 @@
       </span>
       <!-- Which class this belongs to only matters when the view isn't already
            narrowed to one — an unfiltered HTML export lists the whole school. -->
-      {#if !data.filter?.classCode && e.classes.length}
+      {#if running && remainingMin !== null}
+        <span class="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
+          noch {remainingMin} min
+        </span>
+      {:else if !data.filter?.classCode && e.classes.length}
         <span class="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-400">
           {e.classes.join(", ")}
         </span>
@@ -151,16 +169,6 @@
       {/if}
     {/if}
   </div>
-{/snippet}
-
-{#snippet blockLabel(block: { period?: string; start: string; end: string })}
-  {#if block.period}
-    <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300">{block.period}</span>
-  {/if}
-  <!-- HTML exports publish period numbers only; there are no times. -->
-  {#if block.start}
-    <span class="text-[11px] text-zinc-500">{block.start}–{block.end}</span>
-  {/if}
 {/snippet}
 
 {#snippet controls()}
@@ -243,15 +251,27 @@
                   {@const cell = day.cells[bi]}
                   {#if cell}
                     {@const running = isNow(day.date, bi)}
-                    <li class={running ? "-mx-1 rounded-xl border-l-2 border-indigo-400 bg-indigo-500/5 px-1 py-1" : ""}>
-                      <div class="mb-1 flex items-baseline gap-2 px-0.5 whitespace-nowrap">
-                        {@render blockLabel(block)}
-                        {#if running}
-                          <span class="text-[10px] font-medium text-indigo-300">jetzt</span>
+                    <li class="flex items-start gap-2">
+                      <div class="flex w-12 shrink-0 flex-col items-start pt-1.5">
+                        {#if block.period}
+                          <span
+                            class="rounded px-1.5 py-0.5 text-[11px] font-medium {running
+                              ? 'bg-indigo-500/20 text-indigo-200'
+                              : 'bg-zinc-800 text-zinc-300'}"
+                          >{block.period}</span>
+                        {/if}
+                        <!-- HTML-Exporte veröffentlichen nur Stundennummern. -->
+                        {#if block.start}
+                          <span class="mt-1 text-[10px] leading-tight {running ? 'text-indigo-300' : 'text-zinc-500'}">{block.start}</span>
+                          <span class="text-[10px] leading-tight {running ? 'text-indigo-400/70' : 'text-zinc-600'}">{block.end}</span>
                         {/if}
                       </div>
-                      <div class="grid gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'}">
-                        {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
+                      <div
+                        class="grid min-w-0 flex-1 gap-2 {cell.parallel ? 'grid-cols-2' : 'grid-cols-1'} {running
+                          ? 'rounded-xl ring-2 ring-indigo-400/70'
+                          : ''}"
+                      >
+                        {#each cell.entries as e (e.key)}{@render lesson(e, running)}{/each}
                       </div>
                     </li>
                   {/if}
@@ -322,7 +342,7 @@
                     ? 'rounded-xl ring-2 ring-indigo-400/70'
                     : ''}"
                 >
-                  {#each cell.entries as e (e.key)}{@render lesson(e)}{/each}
+                  {#each cell.entries as e (e.key)}{@render lesson(e, running)}{/each}
                 </div>
               {:else}
                 <div
