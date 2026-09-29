@@ -4,11 +4,12 @@
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
   import Modal from "$lib/Modal.svelte";
+  import ConfirmModal from "$lib/ConfirmModal.svelte";
   import PersonChip from "$lib/PersonChip.svelte";
   import { sanitizeHtml, linkifyPlain } from "$lib/linkify";
   import { BOARD_COLORS, boardColor } from "$lib/boardColors";
 
-  let { data } = $props();
+  let { data, form } = $props();
   const groups = $derived((page.data.groups as Array<{ login: string; effective_rights?: string[]; member_rights?: string[] }>) ?? []);
   const groupValue = $derived(data.group ?? "");
 
@@ -39,8 +40,36 @@
     return false;
   });
 
+  // Wie in LernSax: eigene Beiträge darf jeder mit Schreibrecht ändern,
+  // fremde nur, wer die Pinnwand verwaltet.
+  const isAdmin = $derived.by(() => {
+    const g = groups.find((g) => g.login === data.group);
+    const rights = [...(g?.effective_rights ?? []), ...(g?.member_rights ?? [])];
+    return rights.includes(data.kind === "general" ? "board_admin" : `board_${data.kind}_admin`);
+  });
+  const me = $derived((page.data.user as { login?: string } | null)?.login);
+  function canManage(e: { created?: { user?: { login?: string } } }): boolean {
+    return isAdmin || (canWrite && !!me && e.created?.user?.login === me);
+  }
+
   let composing = $state(false);
   let composeColor = $state(0);
+  /** Beitrag, der gerade bearbeitet wird; `null` = neuer Beitrag. */
+  let editing = $state<null | { id: string; title: string; text: string }>(null);
+
+  /** Beitrag, dessen Löschen gerade bestätigt werden soll. */
+  let deleting = $state<{ id: string; title: string } | null>(null);
+
+  function openNew() {
+    editing = null;
+    composeColor = 0;
+    composing = true;
+  }
+  function openEdit(e: { id: string; title: string; text: string; color?: number }) {
+    editing = { id: e.id, title: e.title ?? "", text: e.text ?? "" };
+    composeColor = e.color ?? 0;
+    composing = true;
+  }
 </script>
 
 <div class="grid h-full" style="grid-template-rows: auto 1fr">
@@ -58,7 +87,7 @@
     </div>
     {#if data.group && canWrite}
       <button
-        onclick={() => { composing = true; composeColor = 0; }}
+        onclick={openNew}
         class="flex items-center gap-1.5 rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
       >
         <Icon name="plus" size={16} /> Beitrag
@@ -78,6 +107,9 @@
       </div>
     {:else}
       <div class="mx-auto max-w-3xl space-y-3">
+        {#if form?.error && !composing}
+          <p class="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400">{form.error}</p>
+        {/if}
         {#each data.entries as e}
           {@const col = boardColor(e.color)}
           <article class="group relative overflow-hidden rounded-2xl border {col.border} {col.tint}">
@@ -99,14 +131,28 @@
                     {/if}
                   </p>
                 </div>
-                {#if canWrite}
-                  <form method="POST" action="?/remove" use:enhance class="opacity-0 transition group-hover:opacity-100">
-                    <input type="hidden" name="id" value={e.id} />
-                    <input type="hidden" name="group" value={groupValue} />
-                    <button class="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-red-400" aria-label="Löschen">
+                {#if canManage(e)}
+                  <!-- Auf Touch gibt es kein Hover: dort immer sichtbar. -->
+                  <div class="flex shrink-0 items-center gap-0.5 transition [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
+                    <button
+                      type="button"
+                      onclick={() => openEdit(e)}
+                      class="rounded p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                      aria-label="Bearbeiten"
+                      title="Bearbeiten"
+                    >
+                      <Icon name="pencil" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => (deleting = { id: e.id, title: e.title ?? "" })}
+                      class="rounded p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
+                      aria-label="Löschen"
+                      title="Löschen"
+                    >
                       <Icon name="trash" size={14} />
                     </button>
-                  </form>
+                  </div>
                 {/if}
               </div>
               {#if looksHtml(e.text ?? "")}
@@ -128,18 +174,27 @@
   </section>
 </div>
 
-<Modal open={composing} onclose={() => (composing = false)} title="Neuer Beitrag">
+<Modal open={composing} onclose={() => (composing = false)} title={editing ? "Beitrag bearbeiten" : "Neuer Beitrag"}>
   <form
     method="POST"
-    action="?/post"
-    use:enhance={() => async ({ update }) => { await update(); composing = false; }}
+    action={editing ? "?/update" : "?/post"}
+    use:enhance={() => async ({ result, update }) => {
+      await update();
+      if (result.type === "success") composing = false;
+    }}
     class="space-y-3"
   >
+    {#if form?.error}
+      <p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>
+    {/if}
     <input type="hidden" name="group" value={groupValue} />
+    <input type="hidden" name="kind" value={data.kind} />
     <input type="hidden" name="color" value={composeColor} />
+    {#if editing}<input type="hidden" name="id" value={editing.id} />{/if}
     <input
       name="title"
       placeholder="Titel"
+      value={editing?.title ?? ""}
       required
       class="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500"
     />
@@ -148,6 +203,7 @@
       placeholder="Text… (HTML erlaubt: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, Links)"
       required
       rows="6"
+      value={editing?.text ?? ""}
       class="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-indigo-500"
     ></textarea>
     <div>
@@ -166,7 +222,21 @@
     </div>
     <div class="flex justify-end gap-2 pt-1">
       <button type="button" onclick={() => (composing = false)} class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100">Abbrechen</button>
-      <button type="submit" class="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium hover:bg-indigo-400">Posten</button>
+      <button type="submit" class="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium hover:bg-indigo-400">{editing ? "Speichern" : "Posten"}</button>
     </div>
   </form>
 </Modal>
+
+<ConfirmModal
+  open={deleting !== null}
+  onclose={() => (deleting = null)}
+  title="Beitrag löschen"
+  action="?/remove"
+  fields={{ group: groupValue, kind: data.kind, id: deleting?.id ?? "" }}
+>
+  {#if deleting}
+    <!-- Titel kann HTML sein; hier nur als Text zeigen. -->
+    <p>„<span class="font-medium text-zinc-100 [overflow-wrap:anywhere]">{deleting.title.replace(/<[^>]*>/g, "")}</span>“ wirklich löschen?</p>
+    <p class="mt-2 text-xs text-zinc-500">Das lässt sich nicht rückgängig machen.</p>
+  {/if}
+</ConfirmModal>
