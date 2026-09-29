@@ -74,7 +74,7 @@ export class LernSaxClient {
     this.profile = new ProfileApi(this.session);
     this.notifications = new NotificationsApi(this.session);
     this.addresses = new AddressesApi(this.session);
-    this.forum = new ForumApi(this.session);
+    this.forum = new ForumApi(this.session, webOpts.fetchImpl);
     this.wiki = new WikiApi(this.session);
     this.members = new MembersApi(this.session);
     this.resources = new ResourcesApi(this.session);
