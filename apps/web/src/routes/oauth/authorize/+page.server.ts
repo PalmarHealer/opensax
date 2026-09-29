@@ -1,7 +1,9 @@
 import { error, fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { findClient, issueAuthCode } from "$lib/server/connectionStore";
+import { findClient, issueAuthCode, resolveScopes, type OauthClient } from "$lib/server/connectionStore";
 import { getUserIdForSession } from "$lib/server/sessionStore";
+import { buildClaims } from "$lib/server/identity";
+import type { LernSaxClient } from "@lernsax/core";
 
 interface AuthRequest {
   client_id: string;
@@ -34,6 +36,35 @@ function parse(url: URL): AuthRequest | null {
   return parseFromParams(url.searchParams);
 }
 
+/** Issue the code and build the redirect back to the client. */
+function approvedRedirect(req: AuthRequest, scopes: string[], user_id: string, client: LernSaxClient): string {
+  const code = issueAuthCode({
+    client_id: req.client_id,
+    user_id,
+    redirect_uri: req.redirect_uri,
+    scopes,
+    code_challenge: req.code_challenge,
+    code_challenge_method: req.code_challenge_method,
+    claims: buildClaims(client, user_id, scopes),
+  });
+  const u = new URL(req.redirect_uri);
+  u.searchParams.set("code", code);
+  if (req.state) u.searchParams.set("state", req.state);
+  return u.toString();
+}
+
+function scopeErrorRedirect(req: AuthRequest): string {
+  const u = new URL(req.redirect_uri);
+  u.searchParams.set("error", "invalid_scope");
+  if (req.state) u.searchParams.set("state", req.state);
+  return u.toString();
+}
+
+/** Public clients have nothing but PKCE between a stolen code and a token. */
+function pkceMissing(client: OauthClient, req: AuthRequest): boolean {
+  return !client.client_secret_hash && !req.code_challenge;
+}
+
 export const load: PageServerLoad = async ({ locals, url, cookies }) => {
   const req = parse(url);
   if (!req) throw error(400, "Missing or invalid authorization parameters");
@@ -50,10 +81,23 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
     throw redirect(303, `/login?next=${encodeURIComponent(url.pathname + url.search)}`);
   }
 
+  const scopes = resolveScopes(client, req.scope);
+  if (!scopes) throw redirect(303, scopeErrorRedirect(req));
+  if (scopes.includes("openid") && pkceMissing(client, req)) {
+    throw error(400, "PKCE (code_challenge) required for public clients");
+  }
+
+  // Operator-configured first-party apps sign in without a consent prompt —
+  // but never for `lernsax`, which hands over the whole account.
+  if (client.trusted && !scopes.includes("lernsax")) {
+    const user_id = getUserIdForSession(cookies.get("lernsax_sid") ?? null);
+    if (user_id) throw redirect(303, approvedRedirect(req, scopes, user_id, locals.client));
+  }
+
   return {
     client_name: client.client_name,
     client_id: client.client_id,
-    scopes: (req.scope ?? "lernsax").split(/\s+/),
+    scopes,
     user: {
       displayName: locals.client.whoami()?.fullname ?? locals.client.whoami()?.email ?? "",
       email: locals.client.whoami()?.email ?? locals.client.whoami()?.login ?? "",
@@ -64,10 +108,10 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 };
 
 export const actions: Actions = {
-  approve: async ({ request, cookies }) => {
+  approve: async ({ request, cookies, locals }) => {
     const sid = cookies.get("lernsax_sid");
     const user_id = getUserIdForSession(sid ?? null);
-    if (!user_id) return fail(401, { error: "not authenticated" });
+    if (!user_id || !locals.client) return fail(401, { error: "not authenticated" });
 
     // The action URL drops the original query string (it becomes `?/approve`),
     // so the OAuth params travel via hidden form inputs instead.
@@ -77,20 +121,10 @@ export const actions: Actions = {
     const client = findClient(req.client_id);
     if (!client) return fail(400, { error: "unknown client" });
     if (!client.redirect_uris.includes(req.redirect_uri)) return fail(400, { error: "bad redirect_uri" });
+    const scopes = resolveScopes(client, req.scope);
+    if (!scopes) throw redirect(303, scopeErrorRedirect(req));
 
-    const code = issueAuthCode({
-      client_id: req.client_id,
-      user_id,
-      redirect_uri: req.redirect_uri,
-      scopes: (req.scope ?? "lernsax").split(/\s+/),
-      code_challenge: req.code_challenge,
-      code_challenge_method: req.code_challenge_method,
-    });
-
-    const u = new URL(req.redirect_uri);
-    u.searchParams.set("code", code);
-    if (req.state) u.searchParams.set("state", req.state);
-    throw redirect(303, u.toString());
+    throw redirect(303, approvedRedirect(req, scopes, user_id, locals.client));
   },
   deny: async ({ request }) => {
     const data = await request.formData();

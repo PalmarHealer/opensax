@@ -15,6 +15,10 @@
         "Chat-Nachrichten lesen und schreiben",
       ],
     },
+    openid: { label: "Mit deinem OpenSax-Konto anmelden", lines: ["Keine Mails, Dateien oder sonstigen Inhalte"] },
+    profile: { label: "Deinen Namen sehen", lines: [] },
+    email: { label: "Deine LernSax-Adresse sehen", lines: [] },
+    school: { label: "Deine Schule und Klassen sehen", lines: ["Nur die Namen der Gruppen, keine Inhalte daraus"] },
   };
 </script>
 

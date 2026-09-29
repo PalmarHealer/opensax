@@ -131,6 +131,9 @@ export function authFromHeader(authorization: string | null | undefined): Resolv
   if (!m) return null;
   const conn = findConnection(m[1]!);
   if (!conn) return null;
+  // Sign-in tokens (openid/profile/school) prove who someone is, nothing more.
+  // Only a `lernsax` grant may drive the account.
+  if (!conn.scopes?.includes("lernsax")) return null;
 
   let user_id = conn.user_id ?? null;
   let creds: Credentials | null = null;

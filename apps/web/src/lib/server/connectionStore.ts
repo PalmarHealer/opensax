@@ -33,6 +33,11 @@ export interface ConnectionRecord {
   expires_at: number;
   /** Stable display id (also used as the file basename). */
   id: string;
+  /**
+   * Identity snapshot taken at consent time, served by `/oauth/userinfo`.
+   * Only present for connections that were granted `openid`.
+   */
+  claims?: IdentityClaims;
 }
 
 function ensureDir() { if (!existsSync(STORE_DIR)) mkdirSync(STORE_DIR, { recursive: true }); }
@@ -57,6 +62,7 @@ export function createConnection(args: {
   access_token: string;
   refresh_token?: string;
   ttl_sec?: number;
+  claims?: IdentityClaims;
 }): ConnectionRecord {
   ensureDir();
   const id = randomBytes(12).toString("base64url");
@@ -73,6 +79,7 @@ export function createConnection(args: {
     created_at: now,
     last_used_at: now,
     expires_at: args.ttl_sec ? now + args.ttl_sec * 1000 : 0,
+    claims: args.claims,
   };
   writeFileSync(pathFor(id), JSON.stringify(rec), { mode: 0o600 });
   return rec;
@@ -144,6 +151,15 @@ export interface OauthClient {
   client_name: string;
   redirect_uris: string[];
   created_at: number;
+  /**
+   * Only set for clients configured by the operator (see `staticClients`).
+   * Dynamically registered clients are public and authenticate via PKCE.
+   */
+  client_secret_hash?: string;
+  /** Scopes this client may request; undefined = any known scope. */
+  allowed_scopes?: string[];
+  /** Operator-vouched first-party app: consent is granted without a prompt. */
+  trusted?: boolean;
 }
 const clientsFile = () => join(STORE_DIR, "_clients.json");
 
@@ -169,8 +185,89 @@ export function readClients(): OauthClient[] {
   catch { return []; }
 }
 
+/**
+ * Clients the operator configures in `OPENSAX_OAUTH_CLIENTS`, e.g. an app that
+ * signs its users in through OpenSax. JSON array of
+ * `{client_id, client_secret, client_name, redirect_uris, scopes?, trusted?}`.
+ *
+ * They live in the environment rather than `_clients.json` so that a
+ * confidential client can't be minted through `/oauth/register`: anyone may
+ * register a client named "LessionSummary", only the operator can give one a
+ * secret and skip the consent screen.
+ */
+const staticClients: OauthClient[] = (() => {
+  const raw = process.env.OPENSAX_OAUTH_CLIENTS;
+  if (!raw) return [];
+  try {
+    const list = JSON.parse(raw) as Array<{
+      client_id: string; client_secret: string; client_name?: string;
+      redirect_uris: string[]; scopes?: string[]; trusted?: boolean;
+    }>;
+    return list
+      .filter((c) => c.client_id && c.client_secret && Array.isArray(c.redirect_uris))
+      .map((c) => ({
+        client_id: c.client_id,
+        client_name: c.client_name ?? c.client_id,
+        redirect_uris: c.redirect_uris,
+        created_at: 0,
+        client_secret_hash: hashToken(c.client_secret),
+        allowed_scopes: c.scopes,
+        trusted: c.trusted === true,
+      }));
+  } catch (err) {
+    console.error("[oauth] OPENSAX_OAUTH_CLIENTS is not valid JSON — ignoring", err);
+    return [];
+  }
+})();
+
 export function findClient(client_id: string): OauthClient | null {
-  return readClients().find((c) => c.client_id === client_id) ?? null;
+  return staticClients.find((c) => c.client_id === client_id)
+    ?? readClients().find((c) => c.client_id === client_id)
+    ?? null;
+}
+
+/** Confidential clients must present their secret; public ones must not rely on one. */
+export function verifyClientSecret(client: OauthClient, secret: string | undefined): boolean {
+  if (!client.client_secret_hash) return true;
+  if (!secret) return false;
+  const a = Buffer.from(client.client_secret_hash, "hex");
+  const b = Buffer.from(hashToken(secret), "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// ── Scopes ──────────────────────────────────────────────────────────────
+//
+// `lernsax` is full account access (the MCP connector). The OIDC-style scopes
+// only reveal who the user is — an app that merely wants "Login with OpenSax"
+// must never end up holding a token the MCP server accepts.
+
+export const KNOWN_SCOPES = ["lernsax", "openid", "profile", "email", "school"] as const;
+
+/**
+ * Validate a requested scope string against what the client may ask for.
+ * Returns the granted list, or null if anything unknown or disallowed was
+ * requested. No scope at all keeps the historical default of `lernsax`, which
+ * is what the Claude connector relies on.
+ */
+export function resolveScopes(client: OauthClient, requested: string | undefined): string[] | null {
+  const asked = (requested ?? "").split(/\s+/).filter(Boolean);
+  const scopes = asked.length ? [...new Set(asked)] : (client.allowed_scopes ?? ["lernsax"]);
+  for (const s of scopes) {
+    if (!(KNOWN_SCOPES as readonly string[]).includes(s)) return null;
+    if (client.allowed_scopes && !client.allowed_scopes.includes(s)) return null;
+  }
+  return scopes;
+}
+
+export interface IdentityClaims {
+  /** Same `user_id` the rest of OpenSax uses (SHA-256 of the email, truncated). */
+  sub: string;
+  name?: string;
+  email?: string;
+  /** LernSax institutions (group type 16) the user belongs to. */
+  schools?: Array<{ id: string; name: string }>;
+  /** Classes (group type 19). */
+  classes?: Array<{ id: string; name: string }>;
 }
 
 interface AuthCode {
@@ -181,6 +278,7 @@ interface AuthCode {
   scopes: string[];
   code_challenge?: string;
   code_challenge_method?: string;
+  claims?: IdentityClaims;
   expires_at: number;
 }
 const authCodes = new Map<string, AuthCode>();
