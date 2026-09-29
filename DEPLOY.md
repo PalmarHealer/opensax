@@ -14,7 +14,7 @@ Each push is tagged `latest` and `sha-<full commit sha>`. `docker-compose.yml` r
 | Service       | Container          | Internal port | Purpose                                              |
 |---------------|--------------------|---------------|------------------------------------------------------|
 | Web app       | `lernsax-web`      | `3000`        | UI + OAuth issuer + OnlyOffice callback              |
-| MCP server    | `lernsax-mcp`      | `8765`        | Streamable-HTTP MCP endpoint at path `/mcp`          |
+| MCP server    | `lernsax-mcp`      | `8765`        | Streamable-HTTP MCP endpoint at `/mcp` + REST API at `/api/v1` |
 | OnlyOffice    | `lernsax-onlyoffice` | `80`        | DocumentServer for collaborative editing             |
 
 The MCP **must be served from the same hostname as the web app**, mounted at `/mcp`. RFC 9728 / RFC 8414 discovery only works correctly when the protected resource and its authorization server share an origin.
@@ -100,6 +100,11 @@ server {
 
 Make sure TLS, HTTP/2 and websockets are on.
 
+The REST API (`/api/v1`) needs no rule of its own: the web app forwards it to
+the MCP container over the Docker network (`LERNSAX_MCP_INTERNAL_URL`, default
+`http://lernsax-mcp:8765`). If you'd rather skip that hop, route `/api/v1` to
+`<docker-host>:8765` exactly like `/mcp` — both paths work either way.
+
 #### If the proxy addresses the containers by name
 
 The snippet above points at `<docker-host>:<published port>`, which is a fixed
@@ -156,7 +161,7 @@ To bypass auth for local testing (e.g. with the MCP Inspector), set `LERNSAX_MCP
 
 | Volume                  | Contents                                          |
 |-------------------------|---------------------------------------------------|
-| `lernsax-web-data`      | Encrypted session blobs (`/app/data/sessions`) + connection records (`/app/data/connections`); shared between web and MCP. |
+| `lernsax-web-data`      | Encrypted session blobs (`/app/data/sessions`) + connection records — OAuth connections and API tokens, token hashes only (`/app/data/connections`); shared between web and MCP. |
 | `onlyoffice-*`          | DocumentServer data, logs, file cache.            |
 
 Sessions and connections survive `docker compose down`/`up`; deleting the volume forces every user to re-authenticate.

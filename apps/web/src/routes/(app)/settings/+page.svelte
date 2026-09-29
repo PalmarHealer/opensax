@@ -5,6 +5,7 @@
   import Icon from "$lib/Icon.svelte";
   import ConnectionsList from "$lib/ConnectionsList.svelte";
   import ConnectionsMcpUrl from "$lib/ConnectionsMcpUrl.svelte";
+  import ApiTokens from "$lib/ApiTokens.svelte";
   import { NAV_TABS, loadNavConfig, saveNavConfig, tabById, type NavConfig, type NavMode } from "$lib/nav";
 
   let { data, form } = $props();
@@ -27,7 +28,16 @@
         }>;
       };
     };
-    connections: { count: number; ttl_days: number | null; stored: string[]; scope?: string; records: Array<{ id: string; client_name: string; scopes: string[]; created_at: number; last_used_at: number }> };
+    connections: {
+      count: number;
+      tokens?: number;
+      ttl_days: number | null;
+      stored: string[];
+      note?: string;
+      scope?: string;
+      records: Array<{ id: string; kind?: "oauth" | "token"; client_name: string; scopes: string[]; created_at: number; last_used_at: number; expires_at?: number }>;
+    };
+    office?: { scope: string; stored: string[] };
     davinci?: {
       present: boolean;
       scope?: string;
@@ -42,6 +52,7 @@
     cache: Record<string, { ttl_seconds?: number; ttl_minutes?: string | number; scope: string; stored: string[] }>;
     not_stored: string[];
   }
+  let connectionsReload = $state(0);
   let storage = $state<StorageInfo | null>(null);
   let storageLoading = $state(false);
   let confirming = $state(false);
@@ -585,7 +596,7 @@
         }}
         <h2 class="mb-1 text-xl font-semibold tracking-tight">Verbindungen</h2>
         <p class="mb-4 text-sm text-zinc-400">
-          AI-Tools und andere Clients, die du via MCP autorisiert hast. Du kannst jeden Zugriff hier widerrufen.
+          AI-Tools, die du via MCP autorisiert hast, und API-Tokens für eigene Programme. Du kannst jeden Zugriff hier widerrufen.
         </p>
 
         <section class="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
@@ -597,7 +608,19 @@
           <ConnectionsMcpUrl />
         </section>
 
-        <ConnectionsList />
+        <section class="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+          <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">REST-API</h3>
+          <p class="mb-3 text-xs text-zinc-500">
+            Dieselben Funktionen wie der MCP-Server, als HTTP-API: <code>POST /api/v1/&lt;tool&gt;</code> mit den
+            Argumenten als JSON und einem API-Token als Bearer.
+          </p>
+          <ConnectionsMcpUrl path="/api/v1" />
+          <a href="/api-docs" class="mt-3 inline-block text-sm text-indigo-400 hover:text-indigo-300">API-Dokumentation öffnen →</a>
+        </section>
+
+        <ApiTokens onCreated={() => connectionsReload++} />
+
+        <ConnectionsList reloadKey={connectionsReload} />
       {:else if tab === "navigation"}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Navigation</h2>
 
@@ -806,15 +829,22 @@
               </div>
 
               <div>
-                <p class="font-medium">MCP-Verbindungen ({storage.connections.count})</p>
+                <p class="font-medium">
+                  MCP-Verbindungen &amp; API-Tokens ({storage.connections.count}{storage.connections.tokens ? `, davon ${storage.connections.tokens} API-Token${storage.connections.tokens === 1 ? "" : "s"}` : ""})
+                </p>
                 <p class="text-xs text-zinc-500">{storage.connections.scope ?? "pro LernSax-Account"}.</p>
                 <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
                   {#each storage.connections.stored as line}<li>· {line}</li>{/each}
                 </ul>
+                {#if storage.connections.note}
+                  <p class="mt-1 text-xs text-zinc-500">{storage.connections.note}</p>
+                {/if}
                 {#if storage.connections.records.length}
                   <ul class="mt-2 space-y-1 text-xs text-zinc-400">
                     {#each storage.connections.records as c}
-                      <li>· {c.client_name} — letzte Nutzung {fmtTs(c.last_used_at)}</li>
+                      <li>
+                        · {c.client_name}{c.kind === "token" ? " (API-Token)" : ""} — letzte Nutzung {c.last_used_at ? fmtTs(c.last_used_at) : "nie"}{#if c.kind === "token"}, {c.expires_at ? `läuft ab ${fmtTs(c.expires_at)}` : "läuft nie ab"}{/if}
+                      </li>
                     {/each}
                   </ul>
                 {/if}
@@ -835,6 +865,16 @@
                   </ul>
                 {/if}
               </div>
+
+              {#if storage.office}
+                <div>
+                  <p class="font-medium">Office-Editor</p>
+                  <p class="text-xs text-zinc-500">{storage.office.scope}.</p>
+                  <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
+                    {#each storage.office.stored as line}<li>· {line}</li>{/each}
+                  </ul>
+                </div>
+              {/if}
 
               {#if storage.browser}
                 <div>
@@ -882,7 +922,7 @@
                 class="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-1.5 text-sm font-medium text-red-300 hover:bg-red-500/20"
               >Alle Daten löschen</button>
             {:else}
-              <span class="text-sm text-zinc-400">Sicher? Das meldet alle Geräte ab und löscht alle Verbindungen.</span>
+              <span class="text-sm text-zinc-400">Sicher? Das meldet alle Geräte ab und löscht alle Verbindungen und API-Tokens.</span>
               <button
                 onclick={destroyAccount}
                 class="rounded-md border border-red-500 bg-red-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-400"

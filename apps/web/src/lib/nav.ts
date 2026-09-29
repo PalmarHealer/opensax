@@ -23,6 +23,7 @@ export const ROUTE_SCOPES: Record<string, Scope[]> = {
   "/mail":      ["personal"],
   "/messenger": ["personal"],
   "/settings":  ["personal"],
+  "/api-docs":  ["personal"],
 };
 
 export function scopesFor(pathname: string): Scope[] | null {

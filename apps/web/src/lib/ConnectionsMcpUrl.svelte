@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
+  /** Path under the web app's origin; the MCP endpoint by default. */
+  let { path = "/mcp" }: { path?: string } = $props();
   let url = $state("");
   let copied = $state(false);
   onMount(() => {
-    // MCP shares the web app's hostname under /mcp.
-    url = `${location.origin.replace(/^https?:\/\/(www\.)?/, "https://")}/mcp`;
+    // MCP and API share the web app's hostname (/mcp, /api/v1).
+    url = `${location.origin.replace(/^https?:\/\/(www\.)?/, "https://")}${path}`;
   });
   async function copy() {
     try {
