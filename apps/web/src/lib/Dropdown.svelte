@@ -39,7 +39,7 @@
   {#if open}
     <div
       role="menu"
-      class="absolute z-30 mt-1 w-44 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl
+      class="absolute z-30 mt-1 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl
         {align === 'right' ? 'right-0' : 'left-0'}"
     >
       {@render children(() => (open = false))}
