@@ -6,7 +6,7 @@ const COOKIE = "lernsax_sid";
 const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout"]);
 
 // Endpoints we deliberately allow cross-origin POSTs to (OAuth machinery).
-const CSRF_BYPASS = new Set(["/oauth/token", "/oauth/register", "/oauth/revoke"]);
+const CSRF_BYPASS = new Set(["/oauth/token", "/oauth/register", "/oauth/revoke", "/oauth/userinfo"]);
 
 interface RateRule { max: number; windowMs: number; keyByEmail?: boolean }
 const RATE_RULES: Array<{ match: (path: string, method: string) => boolean; rule: RateRule }> = [
@@ -89,6 +89,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   const isOauthPublic = path === "/oauth/token"
     || path === "/oauth/register"
     || path === "/oauth/revoke"
+    || path === "/oauth/userinfo"
     || path.startsWith("/.well-known/");
   const isPublic = PUBLIC_PATHS.has(path) || path.startsWith("/_") || path === "/favicon.svg"
     || isOoEndpoint || isOauthPublic;

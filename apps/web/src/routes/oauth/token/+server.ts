@@ -6,9 +6,25 @@ import {
   createConnection,
   findByRefreshToken,
   findClient,
+  listForUser,
   mintToken,
+  revoke,
   rotateAccessToken,
+  verifyClientSecret,
 } from "$lib/server/connectionStore";
+
+/** Identity-only tokens exist just long enough to call `/oauth/userinfo`. */
+const IDENTITY_TOKEN_TTL_SEC = 600;
+
+/** client_secret_post or client_secret_basic, whichever the client used. */
+function clientCredentials(request: Request, body: Record<string, string>): { id?: string; secret?: string } {
+  const m = /^Basic\s+(.+)$/i.exec(request.headers.get("authorization") ?? "");
+  if (m) {
+    const [id, secret] = Buffer.from(m[1]!, "base64").toString("utf8").split(":", 2);
+    return { id: id ? decodeURIComponent(id) : undefined, secret: secret ? decodeURIComponent(secret) : undefined };
+  }
+  return { id: body.client_id, secret: body.client_secret };
+}
 
 function b64urlSha256(s: string): string {
   return createHash("sha256").update(s).digest("base64url");
@@ -29,7 +45,8 @@ export const POST: RequestHandler = async ({ request }) => {
   const grant_type = body.grant_type;
 
   if (grant_type === "authorization_code") {
-    const { code, redirect_uri, client_id, code_verifier } = body;
+    const { code, redirect_uri, code_verifier } = body;
+    const { id: client_id, secret } = clientCredentials(request, body);
     if (!code || !redirect_uri || !client_id) return json({ error: "invalid_request" }, { status: 400 });
     const auth = consumeAuthCode(code);
     if (!auth) return json({ error: "invalid_grant" }, { status: 400 });
@@ -46,8 +63,36 @@ export const POST: RequestHandler = async ({ request }) => {
 
     const client = findClient(auth.client_id);
     if (!client) return json({ error: "invalid_client" }, { status: 400 });
+    if (!verifyClientSecret(client, secret)) return json({ error: "invalid_client" }, { status: 401 });
 
     const access_token = mintToken();
+
+    // A sign-in grant carries no account access, so it gets no refresh token
+    // and a short life. It also replaces the previous one for the same app —
+    // otherwise every login would pile up another entry under Settings →
+    // Verbindungen.
+    if (!auth.scopes.includes("lernsax")) {
+      for (const old of listForUser(auth.user_id)) {
+        if (old.client_id === auth.client_id) revoke(old.id);
+      }
+      createConnection({
+        user_id: auth.user_id,
+        client_id: auth.client_id,
+        client_name: client.client_name,
+        redirect_uris: client.redirect_uris,
+        scopes: auth.scopes,
+        access_token,
+        ttl_sec: IDENTITY_TOKEN_TTL_SEC,
+        claims: auth.claims,
+      });
+      return json({
+        access_token,
+        token_type: "Bearer",
+        expires_in: IDENTITY_TOKEN_TTL_SEC,
+        scope: auth.scopes.join(" "),
+      });
+    }
+
     const refresh_token = mintToken();
     createConnection({
       user_id: auth.user_id,
@@ -57,6 +102,7 @@ export const POST: RequestHandler = async ({ request }) => {
       scopes: auth.scopes,
       access_token,
       refresh_token,
+      claims: auth.claims,
     });
 
     return json({
@@ -73,6 +119,10 @@ export const POST: RequestHandler = async ({ request }) => {
     if (!refresh_token) return json({ error: "invalid_request" }, { status: 400 });
     const conn = findByRefreshToken(refresh_token);
     if (!conn) return json({ error: "invalid_grant" }, { status: 400 });
+    const client = findClient(conn.client_id);
+    if (client && !verifyClientSecret(client, clientCredentials(request, body).secret)) {
+      return json({ error: "invalid_client" }, { status: 401 });
+    }
     const access_token = mintToken();
     rotateAccessToken(conn.id, access_token);
     return json({

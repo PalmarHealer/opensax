@@ -10,6 +10,7 @@ services:
       PORT: "3000"
       LERNSAX_WEB_SESSION_KEY: ${LERNSAX_WEB_SESSION_KEY:?set a 32+ char secret}
       ORIGIN: ${WEB_ORIGIN:?set the public web URL, e.g. https://app.example.com}
+      OPENSAX_OAUTH_CLIENTS: ${OPENSAX_OAUTH_CLIENTS:-}
       ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?set a long secret}
       # Public URL the user's browser uses to load OnlyOffice's api.js
       ONLYOFFICE_PUBLIC_URL: ${ONLYOFFICE_PUBLIC_URL:?set the public OnlyOffice URL}

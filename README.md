@@ -143,6 +143,29 @@ Ein leerer Cookie ist eine echte Antwort („Persönlich") und wird nicht
 überschrieben; eine Gruppe, die nicht mehr existiert oder zu den Scopes der
 Route nicht passt, wird ignoriert statt in eine leere Ansicht zu führen.
 
+### Anmelden mit OpenSax
+
+Andere Apps können OpenSax als Login nutzen (OAuth 2.1 Authorization Code +
+PKCE, dazu ein schlanker OIDC-Teil). Die Scopes `openid`, `profile`, `email`
+und `school` geben nur Identität heraus — Name, LernSax-Adresse, Schulen
+(Gruppentyp 16) und Klassen (19). `GET /oauth/userinfo` mit dem Access-Token
+liefert:
+
+```json
+{ "sub": "…", "name": "Vorname Nachname",
+  "schools": [{ "id": "schule@…", "name": "…" }],
+  "classes": [{ "id": "klasse@…", "name": "…" }] }
+```
+
+`sub` ist dieselbe `user_id` wie überall sonst in OpenSax. Die Angaben sind
+ein Schnappschuss vom Moment der Zustimmung; der Token lebt zehn Minuten,
+hat keinen Refresh-Token und ersetzt den vorherigen derselben App. Der
+MCP-Server nimmt ihn nicht an — nur ein `lernsax`-Grant steuert das Konto.
+
+Vertrauliche Clients (mit Secret, optional ohne Zustimmungsdialog) trägt der
+Betreiber in `OPENSAX_OAUTH_CLIENTS` ein, siehe `.env.example`. Über
+`/oauth/register` angelegte Clients bleiben öffentlich und brauchen PKCE.
+
 ## MCP-Server (`packages/mcp`)
 
 Credentials werden als Tool-Argument (`email`, `password`) übergeben und intern in einem Session-Cache (5 Min Idle-TTL) gehalten.
