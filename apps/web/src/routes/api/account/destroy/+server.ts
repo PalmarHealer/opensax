@@ -9,7 +9,8 @@ const COOKIE = "lernsax_sid";
 /**
  * Wipe everything the server has on file for the calling LernSax account:
  * encrypted credentials of every device session, the timetable login, all
- * OAuth/MCP connections, and the auth cookie of the calling browser. Other
+ * OAuth/MCP connections and API tokens (both live in the connection store),
+ * and the auth cookie of the calling browser. Other
  * devices on the same account also lose access — that's the point of "Alle
  * Daten löschen".
  */

@@ -20,10 +20,13 @@ export const GET: RequestHandler = async ({ cookies }) => {
   const user_id = getUserIdForSession(sid ?? null);
   const connections = user_id ? listForUser(user_id).map((c) => ({
     id: c.id,
+    kind: c.kind ?? "oauth",
     client_name: c.client_name,
     scopes: c.scopes,
     created_at: c.created_at,
     last_used_at: c.last_used_at,
+    expires_at: c.expires_at,
+    has_identity_snapshot: !!c.claims,
   })) : [];
   const deviceSessions = user_id ? listSessionsForUser(user_id, sid) : [];
   // Passwort bleibt draußen — dafür gibt es /api/account/export.
@@ -62,15 +65,20 @@ export const GET: RequestHandler = async ({ cookies }) => {
     },
     connections: {
       count: connections.length,
+      tokens: connections.filter((c) => c.kind === "token").length,
+      // OAuth connections live until revoked; API tokens until the expiry the
+      // user picked (or revoked). No fixed server-side TTL either way.
       ttl_days: null,
       stored: [
-        "SHA-256-Hash von Access- und Refresh-Token (Klartext-Tokens werden nie gespeichert)",
+        "SHA-256-Hash von Access- und Refresh-Token bzw. API-Token (Klartext-Tokens werden nie gespeichert)",
         "Account-Kennung (verknüpft die Verbindung mit deinem LernSax-Account, geräteübergreifend)",
-        "Client-Name und Client-ID",
-        "Erlaubte Redirect-URIs",
-        "Berechtigungen (Scopes)",
+        "Art (OAuth-Verbindung oder API-Token), Client-Name bzw. selbst vergebener Token-Name, Client-ID",
+        "Erlaubte Redirect-URIs (nur OAuth)",
+        "Berechtigungen (Scopes) — bei API-Tokens die Liste der erlaubten Tools",
         "Erstellt-, Letzte-Nutzung- und Ablauf-Zeitstempel",
+        "Nur bei „Anmelden mit OpenSax“ (Scope openid): Identitäts-Snapshot vom Zeitpunkt der Zustimmung — Name, Email, Schule(n), Klasse(n) —, den die App über /oauth/userinfo abruft",
       ],
+      note: "API-Tokens und MCP-Verbindungen haben keine eigenen Anmeldedaten: Sie nutzen die verschlüsselt gespeicherte Anmeldung deiner Geräte-Sitzungen. Sind alle Geräte abgemeldet, funktionieren sie nicht mehr.",
       records: connections,
       scope: "pro LernSax-Account (geräteübergreifend)",
     },
@@ -120,9 +128,21 @@ export const GET: RequestHandler = async ({ cookies }) => {
       davinci_dataset: { ttl_minutes: 5, scope: "im Arbeitsspeicher, pro Benutzer", stored: ["Stundenplan-Datensatz der Schule", "eTag des Servers"] },
       files_list: { ttl_seconds: 60, scope: "im Arbeitsspeicher, pro Gruppe", stored: ["Datei- und Ordner-Auflistung"] },
       lernsax_session: { ttl_minutes: "≈30 (LernSax-seitig); proaktiver Reload nach 4 min Idle", scope: "im Arbeitsspeicher, Client-Objekt", stored: ["LernSax-Session-ID", "Profil (whoami)", "Gruppenmitgliedschaften"] },
+      mcp_api_session: { ttl_minutes: 5, scope: "im Arbeitsspeicher des MCP-/API-Servers, pro Account, verfällt 5 min nach dem letzten Aufruf", stored: ["LernSax-Session-ID", "Profil (whoami)", "Gruppenmitgliedschaften"] },
+      rate_limit: { ttl_minutes: 60, scope: "im Arbeitsspeicher, zum Schutz vor Missbrauch", stored: ["IP-Adresse und ggf. Login-Email bei Anmelde- und OAuth-Versuchen", "Hash des API-Tokens bei API-Aufrufen", "Zeitpunkte der Anfragen"] },
+    },
+    // Nicht bei uns, aber auf demselben Server: der Dokumentserver fürs
+    // Bearbeiten im Browser. Er bekommt die Datei, solange sie offen ist.
+    office: {
+      scope: "OnlyOffice-Dokumentserver, nur beim Bearbeiten einer Datei im Browser",
+      stored: [
+        "Arbeitskopie der geöffneten Datei, solange sie bearbeitet wird; beim Speichern landet sie wieder in LernSax",
+        "Der Dokumentserver räumt diese Kopien selbst auf (Standard: spätestens nach einem Tag)",
+      ],
     },
     not_stored: [
-      "Mail-Inhalte, Anhänge, Dateien, Kalender-Einträge, Aufgaben (werden bei jeder Anfrage live von LernSax geholt)",
+      "Mail-Inhalte, Anhänge, Dateien, Kalender-Einträge, Aufgaben (werden bei jeder Anfrage live von LernSax geholt — Ausnahme: die Arbeitskopie beim Bearbeiten im Office-Editor, s.o.)",
+      "Inhalte von API- und MCP-Aufrufen (Argumente und Antworten werden durchgereicht, nicht protokolliert)",
       "Browser-Einstellungen (Theme, Navigations-Layout, zuletzt geöffnete Gruppe) — die liegen im localStorage bzw. in funktionalen Cookies deines Browsers, nicht auf dem Server",
     ],
   });

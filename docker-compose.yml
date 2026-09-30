@@ -17,6 +17,9 @@ services:
       # Docker-internal URL the DocumentServer uses to call our content/callback endpoints
       WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://lernsax-web:3000}
       OO_INTERNAL_HOST: ${OO_INTERNAL_HOST:-lernsax-onlyoffice}
+      # The REST API (/api/v1) is served by the MCP container; the web app
+      # forwards it there and reads the tool catalog from it.
+      LERNSAX_MCP_INTERNAL_URL: ${LERNSAX_MCP_INTERNAL_URL:-http://lernsax-mcp:8765}
       # Relay all LernSax-bound traffic (JSON-RPC, WebDAV, OnlyOffice login)
       # through a German egress proxy so LernSax sees a DE IP. Leave unset to
       # talk to LernSax directly from the deployment.

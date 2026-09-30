@@ -14,6 +14,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createDecipheriv, createHash, timingSafeEqual } from "node:crypto";
 import type { Credentials } from "@lernsax/core";
+import { toolsForScopes } from "./tools.js";
 
 const STORE = process.env.LERNSAX_DATA_DIR
   ?? (process.env.NODE_ENV === "production" ? "/app/data" : "./.session-store");
@@ -35,6 +36,8 @@ interface ConnectionRecord {
   created_at: number;
   last_used_at: number;
   expires_at: number;
+  /** "token" for API tokens made in Settings; absent for OAuth connections. */
+  kind?: "oauth" | "token";
 }
 interface SessionDiskRecord {
   user_id?: string;
@@ -49,9 +52,11 @@ function hash(s: string): Buffer {
   return createHash("sha256").update(s).digest();
 }
 
-function findConnection(token: string): ConnectionRecord | null {
+type Lookup = { rec: ConnectionRecord } | { error: "unknown" | "expired" };
+
+function findConnection(token: string): Lookup {
   const dir = join(STORE, "connections");
-  if (!existsSync(dir)) return null;
+  if (!existsSync(dir)) return { error: "unknown" };
   const expected = hash(token);
   for (const f of readdirSync(dir)) {
     if (!f.endsWith(".json") || f.startsWith("_")) continue;
@@ -60,15 +65,15 @@ function findConnection(token: string): ConnectionRecord | null {
       const candidate = Buffer.from(rec.token_hash, "hex");
       if (candidate.length !== expected.length) continue;
       if (timingSafeEqual(candidate, expected)) {
-        if (rec.expires_at && Date.now() > rec.expires_at) return null;
+        if (rec.expires_at && Date.now() > rec.expires_at) return { error: "expired" };
         // Touch last-used timestamp for the settings UI.
         rec.last_used_at = Date.now();
         try { writeFileSync(join(dir, f), JSON.stringify(rec), { mode: 0o600 }); } catch {}
-        return rec;
+        return { rec };
       }
     } catch { /* skip malformed */ }
   }
-  return null;
+  return { error: "unknown" };
 }
 
 function decryptSession(rec: SessionDiskRecord): Credentials | null {
@@ -122,22 +127,42 @@ export interface ResolvedAuth {
   credentials: Credentials;
   client_name: string;
   user_id: string;
+  /** Tools this token may call — every tool for `lernsax`, else those it names. */
+  tools: Set<string>;
+  kind: "oauth" | "token";
+  /** 0 = never. */
+  expires_at: number;
 }
 
-/** Resolve an Authorization header to LernSax credentials, or null. */
-export function authFromHeader(authorization: string | null | undefined): ResolvedAuth | null {
-  if (!authorization) return null;
+/**
+ * Why a bearer was turned away, so the REST API can say something more useful
+ * than "401". MCP clients only ever see the 401 challenge.
+ */
+export type AuthFailure =
+  | "missing"      // no Bearer header
+  | "unknown"      // no such token (never issued, or revoked)
+  | "expired"      // past the expiry the user chose
+  | "no_scope"     // a sign-in token (openid/profile/…) that grants no tool
+  | "no_session";  // the account isn't signed in on any device any more
+
+export function resolveBearer(authorization: string | null | undefined): { auth: ResolvedAuth } | { error: AuthFailure } {
+  if (!authorization) return { error: "missing" };
   const m = /^Bearer\s+(.+)$/i.exec(authorization.trim());
-  if (!m) return null;
-  const conn = findConnection(m[1]!);
-  if (!conn) return null;
+  if (!m) return { error: "missing" };
+  const found = findConnection(m[1]!);
+  if ("error" in found) return found;
+  const conn = found.rec;
   // Sign-in tokens (openid/profile/school) prove who someone is, nothing more.
-  // Only a `lernsax` grant may drive the account.
-  if (!conn.scopes?.includes("lernsax")) return null;
+  // Only `lernsax` or individual tool scopes may drive the account.
+  const tools = toolsForScopes(conn.scopes ?? []);
+  if (tools.size === 0) return { error: "no_scope" };
 
   let user_id = conn.user_id ?? null;
   let creds: Credentials | null = null;
   if (user_id) {
+    // Credentials are the ones the account signed in with on the web — an API
+    // token carries none of its own, so it works for as long as at least one
+    // device session is alive.
     creds = loadCredsForUser(user_id);
   } else if (conn.user_sid) {
     // Legacy record predating the multi-device refactor: fall back to the
@@ -145,6 +170,21 @@ export function authFromHeader(authorization: string | null | undefined): Resolv
     creds = loadCredsForLegacySid(conn.user_sid);
     user_id = userIdFromCreds(creds);
   }
-  if (!creds || !user_id) return null;
-  return { credentials: creds, client_name: conn.client_name, user_id };
+  if (!creds || !user_id) return { error: "no_session" };
+  return {
+    auth: {
+      credentials: creds,
+      client_name: conn.client_name,
+      user_id,
+      tools,
+      kind: conn.kind ?? "oauth",
+      expires_at: conn.expires_at ?? 0,
+    },
+  };
+}
+
+/** Resolve an Authorization header to LernSax credentials, or null. */
+export function authFromHeader(authorization: string | null | undefined): ResolvedAuth | null {
+  const r = resolveBearer(authorization);
+  return "auth" in r ? r.auth : null;
 }

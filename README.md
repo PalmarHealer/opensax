@@ -198,10 +198,12 @@ Env-Vars (HTTP):
 - `LERNSAX_MCP_HTTP_PATH` (`/mcp`)
 - `LERNSAX_MCP_AUTH_TOKEN` (optional Bearer)
 - `LERNSAX_MCP_IDLE_TTL_MS` (`300000`)
+- `LERNSAX_API_HTTP_PATH` (`/api/v1`) — REST-API, siehe unten
+- `LERNSAX_API_RATE_PER_MIN` (`120`)
 
 ### Verfügbare Tools
 
-`whoami`, `groups_list`, `mail_*` (folders/list/read/send/flag/move/delete), `tasks_*`, `calendar_*` (+ `calendar_holidays`), `board_*`, `notes_*`, `chat_*`, `files_*`, `notifications_*`, `profile_get`, `addresses_list`, `forum_*`, `wiki_page`, `members_*`, `resources_*`, `timetable_*`, plus `raw_call` als Escape-Hatch.
+`whoami`, `groups_list`, `mail_*` (folders/list/read/send/save_draft/flag/move/delete), `tasks_*`, `calendar_*` (+ `calendar_holidays`), `board_*`, `notes_*`, `chat_*`, `files_*`, `notifications_*`, `profile_get`, `addresses_list`, `forum_*`, `wiki_*`, `members_*`, `resources_*`, `timetable_*`, plus `raw_call` als Escape-Hatch.
 
 #### Stundenplan über MCP
 
@@ -217,6 +219,33 @@ es schon für die Sessions tut. Die Kennung ist derselbe `user_id`
 `email`/`password` auf dieselbe Konfiguration. Ohne hinterlegten Zugang
 antworten beide Tools mit einem Hinweis auf die Einrichtung statt mit einem
 leeren Plan.
+
+## REST-API (`/api/v1`)
+
+Dieselben Tools wie der MCP-Server, als HTTP-API: `POST /api/v1/<tool>` mit den
+Argumenten als JSON-Body, `Authorization: Bearer <token>`. Die Tools sind in
+`packages/mcp/src/tools.ts` einmal definiert; MCP-Server, REST-Endpunkte und
+die OpenAPI-Beschreibung (`GET /api/v1/openapi.json`, öffentlich) werden daraus
+erzeugt. Die Doku für Menschen liegt in der App unter `/api-docs`.
+
+**Tokens** erstellt man unter Einstellungen → Verbindungen: Name, Ablauf (Tage,
+Datum oder nie) und die erlaubten Tools — **jedes Tool ist ein eigener Scope**.
+Das Token wird einmal angezeigt (Präfix `osx_`), gespeichert wird nur sein
+SHA-256 in `/app/data/connections`, neben den OAuth-Verbindungen. Eigene
+Anmeldedaten hat es nicht: wie der MCP-Connector nutzt es die verschlüsselte
+Anmeldung der Geräte-Sitzungen und funktioniert, solange der Account auf
+mindestens einem Gerät angemeldet ist. API-Tokens funktionieren auch am
+MCP-Endpoint; dort sieht der Client nur die freigegebenen Tools. Der Scope
+`lernsax` (MCP-Connector) steht für alle Tools.
+
+- `GET /api/v1/tools` — freigegebene Tools und Ablauf des vorgelegten Tokens
+- Fehler immer als `{ "error": { "code", "message", "details?" } }`
+- 120 Anfragen pro Minute und Token (`LERNSAX_API_RATE_PER_MIN`)
+- `files_download` liefert die Datei selbst statt Base64
+
+Ausgeliefert wird die API vom MCP-Container; die Web-App reicht `/api/v1/*`
+an `LERNSAX_MCP_INTERNAL_URL` (Default `http://lernsax-mcp:8765`) weiter, eine
+Änderung am Reverse-Proxy ist also nicht nötig.
 
 ## Core-Library (`packages/core`)
 
@@ -240,6 +269,7 @@ Stateless TypeScript-Wrapper:
 - Mail-HTML wird durch einen kleinen Sanitizer geschickt (Scripts/iframes/Event-Handler raus, alle Links auf `target="_blank"`)
 - Datei-Proxy strippt `X-Frame-Options`/CSP nur für unsere eigene Response, das LernSax-CDN bleibt unberührt
 - MCP-HTTP optional mit Bearer-Token-Auth
+- API-Tokens nur als Hash gespeichert, pro Tool freigegeben, mit selbst gewähltem Ablauf; „Alle Daten löschen“ entfernt sie mit
 
 ## Status
 

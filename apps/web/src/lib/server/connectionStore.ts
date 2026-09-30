@@ -1,8 +1,9 @@
 /**
  * Persistent store for OAuth-style connections — one per (user, third-party
- * client) pair. Bearer tokens are written here when the user approves a
- * Connect-flow on `/oauth/authorize` and read by the MCP container on every
- * tool call (the data dir is mounted into both containers).
+ * client) pair — and for API tokens the user creates in Settings. Bearer
+ * tokens are written here when the user approves a Connect-flow on
+ * `/oauth/authorize` (or creates a token) and read by the MCP container on
+ * every tool or API call (the data dir is mounted into both containers).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -29,8 +30,13 @@ export interface ConnectionRecord {
   scopes: string[];
   created_at: number;
   last_used_at: number;
-  /** 0 = never expires (we rotate via refresh). */
+  /** 0 = never expires (OAuth rotates via refresh; tokens: the user's choice). */
   expires_at: number;
+  /**
+   * "token" = API token the user created in Settings; its scopes are tool
+   * names. Absent on OAuth connections (records predate the field).
+   */
+  kind?: "oauth" | "token";
   /** Stable display id (also used as the file basename). */
   id: string;
   /**
@@ -83,6 +89,45 @@ export function createConnection(args: {
   };
   writeFileSync(pathFor(id), JSON.stringify(rec), { mode: 0o600 });
   return rec;
+}
+
+/** Pseudo client every API token is filed under. */
+export const API_TOKEN_CLIENT_ID = "opensax-api-token";
+
+/**
+ * Create an API token. The bare token is returned once and never stored —
+ * the caller shows it to the user and forgets it.
+ *
+ * It carries no credentials of its own: the MCP container resolves it to the
+ * account's device session, like the MCP connector's OAuth tokens.
+ */
+export function createApiToken(args: {
+  user_id: string;
+  name: string;
+  scopes: string[];
+  /** Unix ms; 0 = never. */
+  expires_at: number;
+}): { record: ConnectionRecord; token: string } {
+  ensureDir();
+  // Prefixed so the token is recognisable in configs and secret scanners.
+  const token = `osx_${mintToken()}`;
+  const id = randomBytes(12).toString("base64url");
+  const now = Date.now();
+  const record: ConnectionRecord = {
+    id,
+    token_hash: hashToken(token),
+    user_id: args.user_id,
+    client_id: API_TOKEN_CLIENT_ID,
+    client_name: args.name,
+    redirect_uris: [],
+    scopes: args.scopes,
+    created_at: now,
+    last_used_at: 0,
+    expires_at: args.expires_at,
+    kind: "token",
+  };
+  writeFileSync(pathFor(id), JSON.stringify(record), { mode: 0o600 });
+  return { record, token };
 }
 
 export function listAll(): ConnectionRecord[] {

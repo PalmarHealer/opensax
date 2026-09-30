@@ -91,8 +91,10 @@ export const handle: Handle = async ({ event, resolve }) => {
     || path === "/oauth/revoke"
     || path === "/oauth/userinfo"
     || path.startsWith("/.well-known/");
+  // REST API: bearer tokens, checked by the MCP container behind the proxy route.
+  const isApi = path === "/api/v1" || path.startsWith("/api/v1/");
   const isPublic = PUBLIC_PATHS.has(path) || path.startsWith("/_") || path === "/favicon.svg"
-    || isOoEndpoint || isOauthPublic;
+    || isOoEndpoint || isOauthPublic || isApi;
   if (!event.locals.client && !isPublic) {
     if (path.startsWith("/api/")) {
       return new Response(JSON.stringify({ error: "unauthenticated" }), {

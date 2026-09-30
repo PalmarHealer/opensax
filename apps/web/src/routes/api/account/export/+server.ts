@@ -8,8 +8,9 @@ const COOKIE = "lernsax_sid";
 
 /**
  * Full data dump for the calling user — credentials are decrypted on the
- * fly so the user can take them with them. Connection records expose only
- * the hash of any access tokens (the bare tokens are never persisted).
+ * fly so the user can take them with them. Connection records (OAuth and API
+ * tokens alike) expose only the hash of any tokens (the bare tokens are never
+ * persisted).
  */
 export const GET: RequestHandler = async ({ cookies }) => {
   const sid = cookies.get(COOKIE);
@@ -51,6 +52,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
     })),
     connections: connections.map((c) => ({
       id: c.id,
+      kind: c.kind ?? "oauth",
       client_name: c.client_name,
       client_id: c.client_id,
       redirect_uris: c.redirect_uris,
@@ -60,6 +62,8 @@ export const GET: RequestHandler = async ({ cookies }) => {
       expires_at: c.expires_at,
       access_token_sha256: c.token_hash,
       refresh_token_sha256: c.refresh_hash ?? null,
+      // What `/oauth/userinfo` hands the app — only for `openid` grants.
+      identity_snapshot: c.claims ?? null,
     })),
   };
 

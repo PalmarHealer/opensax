@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { SessionCache } from "@lernsax/core";
 import { buildServer, defaultCache } from "./server.js";
 import { authFromHeader } from "./auth.js";
+import { API_PATH, handleRest } from "./rest.js";
 
 const MCP_PATH = process.env.LERNSAX_MCP_HTTP_PATH ?? "/mcp";
 const AUTH_TOKEN = process.env.LERNSAX_MCP_AUTH_TOKEN || null;
@@ -52,6 +53,8 @@ export async function startHttpServer(host: string, port: number): Promise<{ clo
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
+      // REST API (same tools, same tokens) — see rest.ts.
+      if (await handleRest(req, res, cache)) return;
       if (req.url !== MCP_PATH && !req.url?.startsWith(MCP_PATH + "?")) {
         res.statusCode = 404;
         res.end();
@@ -93,7 +96,7 @@ export async function startHttpServer(host: string, port: number): Promise<{ clo
         }));
         return;
       }
-      const { server } = buildServer(cache, auth?.credentials);
+      const { server } = buildServer(cache, auth?.credentials, auth?.tools);
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       await server.connect(transport);
 
@@ -118,6 +121,7 @@ export async function startHttpServer(host: string, port: number): Promise<{ clo
 
   await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
   console.error(`[lernsax-mcp] streamable-http listening on http://${host}:${port}${MCP_PATH}${AUTH_TOKEN ? " (auth required)" : ""}`);
+  console.error(`[lernsax-mcp] REST API on http://${host}:${port}${API_PATH}`);
 
   return {
     cache,
