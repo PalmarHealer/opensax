@@ -15,6 +15,14 @@ const DROP_RESPONSE = new Set(["connection", "keep-alive", "transfer-encoding", 
 
 const forward: RequestHandler = async ({ request, url, params, getClientAddress }) => {
   const target = mcpInternalUrl(`/api/v1/${params.path}${url.search}`);
+  // `params.path` is decoded, so `..%2F` would resolve out of /api/v1 (e.g. to
+  // /mcp) once fetch normalises the URL. Only ever forward below /api/v1.
+  if (!new URL(target).pathname.startsWith("/api/v1/")) {
+    return new Response(JSON.stringify({ error: { code: "not_found", message: "Unbekannter Pfad." } }), {
+      status: 404,
+      headers: { "content-type": "application/json" },
+    });
+  }
   const headers = new Headers();
   for (const h of FORWARD_REQUEST) {
     const v = request.headers.get(h);
