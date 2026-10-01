@@ -10,6 +10,9 @@ FROM node:24-alpine AS runtime
 RUN corepack enable && corepack prepare pnpm@10.28.0 --activate
 WORKDIR /app
 ENV NODE_ENV=production
+# adapter-node caps request bodies at 512K by default; the /api/v1 proxy
+# forwards base64 uploads (files_upload) and the MCP side accepts up to 32MB.
+ENV BODY_SIZE_LIMIT=33554432
 COPY --from=build /repo/package.json ./package.json
 COPY --from=build /repo/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=build /repo/pnpm-lock.yaml ./pnpm-lock.yaml

@@ -17,6 +17,7 @@ const KEY = "k".repeat(32);
 process.env.LERNSAX_DATA_DIR = dir;
 process.env.LERNSAX_WEB_SESSION_KEY = KEY;
 process.env.LERNSAX_API_RATE_PER_MIN = "1000";
+process.env.LERNSAX_API_AUTH_FAIL_PER_MIN = "20";
 delete process.env.WEB_ORIGIN;
 
 const EMAIL = "ada@example.org";
@@ -162,4 +163,19 @@ test("MCP server registers only the granted tools", async () => {
   const { server: mcp } = buildServer(fakeCache, { email: EMAIL, password: "pw" }, new Set(["mail_list"]));
   const registered = Object.keys((mcp as unknown as { _registeredTools: Record<string, unknown> })._registeredTools);
   assert.deepEqual(registered, ["mail_list"]);
+});
+
+test("random bearers can't dodge the rate limit", async () => {
+  const from = (ip: string, token: string) =>
+    fetch(`${base}/mail_folders`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-forwarded-for": ip },
+      body: "{}",
+    });
+  for (let i = 0; i < 20; i++) assert.equal((await from("203.0.113.9", `random-${i}`)).status, 401);
+  const blocked = await from("203.0.113.9", "random-20");
+  assert.equal(blocked.status, 429);
+  assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+  // Other clients are unaffected.
+  assert.equal((await from("203.0.113.10", "tok-full")).status, 200);
 });
