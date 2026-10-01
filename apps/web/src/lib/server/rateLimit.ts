@@ -52,3 +52,13 @@ export function clientIp(headers: Headers, fallback: string | null): string {
   }
   return fallback ?? "unknown";
 }
+
+/**
+ * X-Forwarded-For for a call we pass on to the MCP container: the resolved
+ * IP, repeated so it sits `TRUSTED_PROXY_HOPS` from the right. The MCP prefers
+ * the signed header (`signedClientIp`); this is the fallback when that header
+ * is missing (no session key), so the MCP still reads the right IP.
+ */
+export function forwardedFor(ip: string): string {
+  return Array(Math.max(1, proxyHops())).fill(ip).join(", ");
+}

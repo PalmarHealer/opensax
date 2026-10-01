@@ -1,6 +1,6 @@
 import type { RequestHandler } from "./$types";
 import { CLIENT_IP_HEADER, mcpInternalUrl, signedClientIp } from "$lib/server/mcpInternal";
-import { clientIp } from "$lib/server/rateLimit";
+import { clientIp, forwardedFor } from "$lib/server/rateLimit";
 
 /**
  * Forward the REST API to the MCP container, which serves it.
@@ -29,7 +29,7 @@ const forward: RequestHandler = async ({ request, url, params, getClientAddress 
     if (v) headers.set(h, v);
   }
   const ip = clientIp(request.headers, getClientAddress?.() ?? null);
-  headers.set("x-forwarded-for", ip);
+  headers.set("x-forwarded-for", forwardedFor(ip));
   const signed = signedClientIp(ip);
   if (signed) headers.set(CLIENT_IP_HEADER, signed);
   headers.set("x-forwarded-proto", url.protocol.replace(/:$/, ""));
