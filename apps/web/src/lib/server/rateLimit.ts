@@ -3,6 +3,8 @@
  * for our deployment topology (one SvelteKit container behind a reverse proxy).
  * If we ever scale horizontally, swap this for Redis/Upstash.
  */
+import { env } from "$env/dynamic/private";
+
 interface Bucket {
   hits: number[];
 }
@@ -30,10 +32,32 @@ export function rateLimit(key: string, max: number, windowMs: number): { ok: boo
   return { ok: true, retryAfterSec: 0 };
 }
 
+function proxyHops(): number {
+  const n = Number.parseInt(env.TRUSTED_PROXY_HOPS ?? "1", 10);
+  return Number.isFinite(n) && n >= 0 ? n : 1;
+}
+
+/**
+ * The client's IP. Every proxy appends the address it saw to X-Forwarded-For,
+ * so the entry `TRUSTED_PROXY_HOPS` from the right is what our outermost proxy
+ * recorded — anything left of it came from the client and can be forged.
+ * Without that many entries (no proxy, or an internal call) the socket
+ * address is used; `TRUSTED_PROXY_HOPS=0` always uses it.
+ */
 export function clientIp(headers: Headers, fallback: string | null): string {
-  const xff = headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]?.trim() ?? fallback ?? "unknown";
-  const real = headers.get("x-real-ip");
-  if (real) return real.trim();
+  const hops = proxyHops();
+  if (hops > 0) {
+    const list = (headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (list.length >= hops) return list[list.length - hops]!;
+  }
   return fallback ?? "unknown";
+}
+
+/**
+ * X-Forwarded-For for a request we pass on to the MCP container: the resolved
+ * client IP, repeated so it sits `TRUSTED_PROXY_HOPS` from the right. The MCP
+ * reads it with the same setting, as if it were behind our proxies itself.
+ */
+export function forwardedFor(ip: string): string {
+  return Array(Math.max(1, proxyHops())).fill(ip).join(", ");
 }

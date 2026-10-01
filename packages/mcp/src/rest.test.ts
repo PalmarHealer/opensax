@@ -176,6 +176,9 @@ test("random bearers can't dodge the rate limit", async () => {
   const blocked = await from("203.0.113.9", "random-20");
   assert.equal(blocked.status, 429);
   assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+  // A forged X-Forwarded-For prefix doesn't buy a fresh IP: only the entry our
+  // proxy appended (rightmost, TRUSTED_PROXY_HOPS=1) counts.
+  assert.equal((await from("198.51.100.1, 203.0.113.9", "random-21")).status, 429);
   // Other clients are unaffected.
   assert.equal((await from("203.0.113.10", "tok-full")).status, 200);
 });

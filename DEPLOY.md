@@ -100,6 +100,23 @@ server {
 
 Make sure TLS, HTTP/2 and websockets are on.
 
+#### Client IPs (`TRUSTED_PROXY_HOPS`)
+
+Rate limits and the "last active from" IP in Settings key on the client IP,
+read from `X-Forwarded-For`. Each proxy appends the address it saw, so only
+the entries your own proxies wrote are trustworthy — anything further left
+came from the client. Both containers take the entry `TRUSTED_PROXY_HOPS`
+from the right (default `1`, one proxy) and fall back to the connecting
+address when there are fewer entries.
+
+- One proxy (nginx above, Nginx Proxy Manager, Caddy, Traefik): leave it at `1`.
+- Two in a row (e.g. Cloudflare in front of nginx): `2`.
+- Nothing in front, clients connect to the ports directly: `0`.
+
+A value that is too high lets clients pick their own IP again. The header
+only means something for traffic that went through your proxy, so set
+`BIND_HOST` so ports `3001` and `8765` can't be reached around it.
+
 The REST API (`/api/v1`) needs no rule of its own: the web app forwards it to
 the MCP container over the Docker network (`LERNSAX_MCP_INTERNAL_URL`, default
 `http://lernsax-mcp:8765`). If you'd rather skip that hop, route `/api/v1` to
