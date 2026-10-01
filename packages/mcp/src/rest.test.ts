@@ -219,3 +219,30 @@ test("a session the key can't open is a server error, not no_session", async () 
   assert.equal(r.status, 500);
   assert.equal(((await r.json()) as { error: { code: string } }).error.code, "server_misconfigured");
 });
+
+test("a stale session doesn't hide an older one the key can open", async () => {
+  // Newest session for Ada, written under a different key (e.g. before a key change).
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", Buffer.from("x".repeat(32)), iv);
+  const enc = Buffer.concat([cipher.update(JSON.stringify({ email: EMAIL, password: "old" })), cipher.final()]);
+  writeFileSync(join(dir, "sessions", "stale.json"), JSON.stringify({
+    user_id: userId, encCreds: enc.toString("hex"), iv: iv.toString("hex"), tag: cipher.getAuthTag().toString("hex"),
+    createdAt: Date.now(), lastSeen: Date.now() + 60_000,
+  }));
+  try {
+    assert.equal((await call("/mail_folders", "tok-full", {})).status, 200);
+  } finally {
+    rmSync(join(dir, "sessions", "stale.json"), { force: true });
+  }
+});
+
+test("legacy user_sid tokens report an unreadable session as a server error too", async () => {
+  // Reuses bob.json from above, which our key can't open.
+  writeFileSync(join(dir, "connections", "legacy.json"), JSON.stringify({
+    id: "legacy", token_hash: sha("tok-legacy"), user_sid: "bob", client_id: "c", client_name: "Legacy",
+    redirect_uris: [], scopes: ["lernsax"], created_at: Date.now(), last_used_at: 0, expires_at: 0,
+  }));
+  const r = await call("/mail_folders", "tok-legacy", {});
+  assert.equal(r.status, 500);
+  assert.equal(((await r.json()) as { error: { code: string } }).error.code, "server_misconfigured");
+});

@@ -33,7 +33,7 @@ function warnKeyMismatch() {
   if (warnedKeyMismatch) return;
   warnedKeyMismatch = true;
   console.error(
-    "[lernsax-mcp] a stored session can't be decrypted — LERNSAX_WEB_SESSION_KEY differs from the web app's. API tokens and MCP connections won't work until both containers use the same key.",
+    "[lernsax-mcp] none of an account's stored sessions can be decrypted — most likely LERNSAX_WEB_SESSION_KEY differs from the web app's. Its API tokens and MCP connections fail until both containers use the same key.",
   );
 }
 
@@ -101,14 +101,15 @@ function decryptSession(rec: SessionDiskRecord): Credentials | null {
 }
 
 /**
- * The newest session's credentials, null if the account has none, or
- * "undecryptable" if it has one our key can't open (key differs from the web
- * app's).
+ * Credentials from the newest session our key can open, null if the account
+ * has none, or "undecryptable" if it has sessions but none of them open (key
+ * differs from the web app's). Older sessions are tried too, so one stale
+ * file — say from before a key change — doesn't lock the account out.
  */
 function loadCredsForUser(user_id: string): Credentials | "undecryptable" | null {
   const dir = join(STORE, "sessions");
   if (!existsSync(dir)) return null;
-  let best: { rec: SessionDiskRecord; lastSeen: number } | null = null;
+  const mine: SessionDiskRecord[] = [];
   for (const f of readdirSync(dir)) {
     if (!f.endsWith(".json")) continue;
     try {
@@ -116,11 +117,16 @@ function loadCredsForUser(user_id: string): Credentials | "undecryptable" | null
       // Pre-multi-device records have no user_id; decrypt and compare emails.
       const recUserId = rec.user_id ?? userIdFromCreds(decryptSession(rec));
       if (recUserId !== user_id) continue;
-      if (!best || rec.lastSeen > best.lastSeen) best = { rec, lastSeen: rec.lastSeen };
+      mine.push(rec);
     } catch { /* skip malformed */ }
   }
-  if (!best) return null;
-  return decryptSession(best.rec) ?? "undecryptable";
+  if (mine.length === 0) return null;
+  mine.sort((a, b) => (b.lastSeen ?? 0) - (a.lastSeen ?? 0));
+  for (const rec of mine) {
+    const creds = decryptSession(rec);
+    if (creds) return creds;
+  }
+  return "undecryptable";
 }
 
 function userIdFromCreds(creds: Credentials | null): string | null {
@@ -128,13 +134,13 @@ function userIdFromCreds(creds: Credentials | null): string | null {
   return createHash("sha256").update(creds.email.toLowerCase().trim()).digest("hex").slice(0, 32);
 }
 
-function loadCredsForLegacySid(user_sid: string): Credentials | null {
+function loadCredsForLegacySid(user_sid: string): Credentials | "undecryptable" | null {
   if (!SESSION_KEY) return null;
   const safe = user_sid.replace(/[^a-zA-Z0-9_-]/g, "");
   const p = join(STORE, "sessions", `${safe}.json`);
   if (!existsSync(p)) return null;
   try {
-    return decryptSession(JSON.parse(readFileSync(p, "utf8")) as SessionDiskRecord);
+    return decryptSession(JSON.parse(readFileSync(p, "utf8")) as SessionDiskRecord) ?? "undecryptable";
   } catch {
     return null;
   }
@@ -177,23 +183,23 @@ export function resolveBearer(authorization: string | null | undefined): { auth:
   if (!SESSION_KEY) return { error: "server_key" };
 
   let user_id = conn.user_id ?? null;
-  let creds: Credentials | null = null;
+  let loaded: Credentials | "undecryptable" | null = null;
   if (user_id) {
     // Credentials are the ones the account signed in with on the web — an API
     // token carries none of its own, so it works for as long as at least one
     // device session is alive.
-    const loaded = loadCredsForUser(user_id);
-    if (loaded === "undecryptable") {
-      warnKeyMismatch();
-      return { error: "server_key" };
-    }
-    creds = loaded;
+    loaded = loadCredsForUser(user_id);
   } else if (conn.user_sid) {
     // Legacy record predating the multi-device refactor: fall back to the
     // single session file the connection was issued against.
-    creds = loadCredsForLegacySid(conn.user_sid);
-    user_id = userIdFromCreds(creds);
+    loaded = loadCredsForLegacySid(conn.user_sid);
   }
+  if (loaded === "undecryptable") {
+    warnKeyMismatch();
+    return { error: "server_key" };
+  }
+  const creds = loaded;
+  if (!user_id) user_id = userIdFromCreds(creds);
   if (!creds || !user_id) return { error: "no_session" };
   return {
     auth: {
