@@ -43,8 +43,8 @@ services:
       LERNSAX_MCP_HTTP_PORT: "8765"
       LERNSAX_MCP_HTTP_PATH: "/mcp"
       LERNSAX_MCP_IDLE_TTL_MS: "300000"
-      # Same value as the web app. The web app forwards /api/v1 with the client
-      # IP at that position, so it reads the same here.
+      # Same value as the web app. Calls the web app forwards to /api/v1 carry
+      # its signed client IP instead (shared LERNSAX_WEB_SESSION_KEY).
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # Same data volume + key as the web app so the MCP server can resolve
       # OAuth bearer tokens to user credentials.

@@ -80,7 +80,7 @@ server {
     proxy_pass http://<docker-host>:8765;
     proxy_http_version 1.1;
     proxy_set_header Host              $host;
-    proxy_set_header X-Forwarded-For   $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_buffering off;
     proxy_read_timeout 300s;
@@ -90,7 +90,7 @@ server {
     proxy_pass http://<docker-host>:3001;
     proxy_http_version 1.1;
     proxy_set_header Host              $host;
-    proxy_set_header X-Forwarded-For   $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Upgrade           $http_upgrade;
     proxy_set_header Connection        "upgrade";
@@ -112,6 +112,17 @@ address when there are fewer entries.
 - One proxy (nginx above, Nginx Proxy Manager, Caddy, Traefik): leave it at `1`.
 - Two in a row (e.g. Cloudflare in front of nginx): `2`.
 - Nothing in front, clients connect to the ports directly: `0`.
+
+Count only proxies that **append** to the header (`$proxy_add_x_forwarded_for`
+in nginx, the default in Nginx Proxy Manager, Caddy and Traefik). A proxy that
+**replaces** it (`X-Forwarded-For $remote_addr`) keeps only the address it
+saw — fine when it is the only proxy, but behind Cloudflare that address is
+a Cloudflare server and every user would share it. Chain proxies only with
+appending ones.
+
+Calls to `/api/v1` that the web app forwards to the MCP container carry the
+IP the web app resolved, signed with `LERNSAX_WEB_SESSION_KEY`, so they need
+no extra hop counted.
 
 A value that is too high lets clients pick their own IP again. The header
 only means something for traffic that went through your proxy, so set

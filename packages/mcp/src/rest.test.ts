@@ -10,7 +10,7 @@ import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 
 const dir = mkdtempSync(join(tmpdir(), "opensax-rest-"));
 const KEY = "k".repeat(32);
@@ -181,4 +181,21 @@ test("random bearers can't dodge the rate limit", async () => {
   assert.equal((await from("198.51.100.1, 203.0.113.9", "random-21")).status, 429);
   // Other clients are unaffected.
   assert.equal((await from("203.0.113.10", "tok-full")).status, 200);
+});
+
+test("trusts the client IP the web app signed, not a forged one", async () => {
+  const sign = (ip: string) => `${ip} ${createHmac("sha256", KEY).update(`client-ip:${ip}`).digest("hex")}`;
+  const via = (xff: string, clientIp: string, token = "nope") =>
+    fetch(`${base}/mail_folders`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-forwarded-for": xff, "x-opensax-client-ip": clientIp },
+      body: "{}",
+    });
+  // All through the same web container: the signed IP is the bucket, not XFF.
+  for (let i = 0; i < 20; i++) assert.equal((await via(`10.0.0.${i}`, sign("192.0.2.50"))).status, 401);
+  assert.equal((await via("10.0.0.99", sign("192.0.2.50"))).status, 429);
+  assert.equal((await via("10.0.0.99", sign("192.0.2.51"), "tok-full")).status, 200);
+  // A bad signature is ignored and the XFF rule applies again.
+  const forged = `192.0.2.50 ${"0".repeat(64)}`;
+  assert.equal((await via("192.0.2.60", forged)).status, 401);
 });

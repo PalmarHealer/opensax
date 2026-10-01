@@ -52,12 +52,3 @@ export function clientIp(headers: Headers, fallback: string | null): string {
   }
   return fallback ?? "unknown";
 }
-
-/**
- * X-Forwarded-For for a request we pass on to the MCP container: the resolved
- * client IP, repeated so it sits `TRUSTED_PROXY_HOPS` from the right. The MCP
- * reads it with the same setting, as if it were behind our proxies itself.
- */
-export function forwardedFor(ip: string): string {
-  return Array(Math.max(1, proxyHops())).fill(ip).join(", ");
-}
