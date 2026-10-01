@@ -199,3 +199,23 @@ test("trusts the client IP the web app signed, not a forged one", async () => {
   const forged = `192.0.2.50 ${"0".repeat(64)}`;
   assert.equal((await via("192.0.2.60", forged)).status, 401);
 });
+
+test("a session the key can't open is a server error, not no_session", async () => {
+  // Another account whose session was encrypted with a different key.
+  const email = "bob@example.org";
+  const bobId = createHash("sha256").update(email).digest("hex").slice(0, 32);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", Buffer.from("x".repeat(32)), iv);
+  const enc = Buffer.concat([cipher.update(JSON.stringify({ email, password: "pw" })), cipher.final()]);
+  writeFileSync(join(dir, "sessions", "bob.json"), JSON.stringify({
+    user_id: bobId, encCreds: enc.toString("hex"), iv: iv.toString("hex"), tag: cipher.getAuthTag().toString("hex"),
+    createdAt: Date.now(), lastSeen: Date.now(),
+  }));
+  writeFileSync(join(dir, "connections", "bob.json"), JSON.stringify({
+    id: "bob", token_hash: sha("tok-bob"), user_id: bobId, client_id: "opensax-api-token", client_name: "Bob",
+    redirect_uris: [], scopes: ["lernsax"], created_at: Date.now(), last_used_at: 0, expires_at: 0, kind: "token",
+  }));
+  const r = await call("/mail_folders", "tok-bob", {});
+  assert.equal(r.status, 500);
+  assert.equal(((await r.json()) as { error: { code: string } }).error.code, "server_misconfigured");
+});

@@ -62,6 +62,7 @@ export const actions: Actions = {
     try {
       await c.wiki.remove(group, id);
     } catch (e) { return fail(403, { error: (e as Error).message }); }
-    return { ok: true };
+    // Die Seite ist weg — zurück zur Übersicht statt auf eine leere Seite.
+    throw redirect(303, `/wiki?group=${encodeURIComponent(group)}`);
   },
 };

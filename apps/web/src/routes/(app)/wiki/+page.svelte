@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
+  import ConfirmModal from "$lib/ConfirmModal.svelte";
   import Modal from "$lib/Modal.svelte";
   import { sanitizeHtml } from "$lib/linkify";
 
@@ -16,6 +17,7 @@
   }
 
   let creating = $state(false);
+  let deleting = $state(false);
   let editing = $state(false);
   let editTitle = $state("");
   let editText = $state("");
@@ -80,11 +82,7 @@
           <h1 class="text-2xl font-semibold">{data.current.title}</h1>
           <div class="flex gap-1">
             <button onclick={startEdit} class="rounded p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" aria-label="Bearbeiten"><Icon name="pencil" size={16} /></button>
-            <form method="POST" action="?/remove" use:enhance={() => async ({ update }) => { await update(); selectPage(null); }}>
-              <input type="hidden" name="group" value={groupValue} />
-              <input type="hidden" name="id" value={data.current.id} />
-              <button class="rounded p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-red-400" aria-label="Löschen"><Icon name="trash" size={16} /></button>
-            </form>
+            <button onclick={() => (deleting = true)} class="rounded p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-red-400" aria-label="Löschen"><Icon name="trash" size={16} /></button>
           </div>
         </header>
         <div class="prose prose-invert prose-sm max-w-none break-words leading-relaxed">
@@ -119,3 +117,16 @@
     </div>
   </form>
 </Modal>
+
+<ConfirmModal
+  open={deleting && !!data.current}
+  onclose={() => (deleting = false)}
+  title="Wiki-Seite löschen"
+  action="?/remove"
+  fields={{ group: groupValue, id: data.current?.id ?? "" }}
+>
+  {#if data.current}
+    <p>„<span class="font-medium text-zinc-100 [overflow-wrap:anywhere]">{data.current.title}</span>“ wirklich löschen?</p>
+    <p class="mt-2 text-xs text-zinc-500">Das lässt sich nicht rückgängig machen.</p>
+  {/if}
+</ConfirmModal>

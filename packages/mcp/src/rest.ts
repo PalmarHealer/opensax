@@ -77,6 +77,10 @@ const AUTH_MESSAGES: Record<AuthFailure, [string, string]> = {
     "no_session",
     "Zu diesem Account ist keine Anmeldung mehr hinterlegt. Melde dich einmal in der Weboberfläche an, dann funktioniert das Token wieder.",
   ],
+  server_key: [
+    "server_misconfigured",
+    "Der Server kann gespeicherte Anmeldungen nicht entschlüsseln (LERNSAX_WEB_SESSION_KEY fehlt oder weicht von der Web-App ab). Das liegt nicht am Token — bitte dem Betreiber melden.",
+  ],
 };
 
 // Sliding window per valid token, plus per IP for failed auth. One process,
@@ -194,9 +198,11 @@ export async function handleRest(req: IncomingMessage, res: ServerResponse, cach
 
     const resolved = resolveBearer(bearer);
     if ("error" in resolved) {
-      rateLimited(failKey, AUTH_FAIL_MAX);
+      // A server-side key problem is not the client's failed attempt.
+      if (resolved.error !== "server_key") rateLimited(failKey, AUTH_FAIL_MAX);
       const [code, message] = AUTH_MESSAGES[resolved.error];
-      throw new HttpError(resolved.error === "no_scope" ? 403 : 401, code, message);
+      const status = resolved.error === "server_key" ? 500 : resolved.error === "no_scope" ? 403 : 401;
+      throw new HttpError(status, code, message);
     }
     const wait = rateLimited(createHash("sha256").update(bearer!).digest("hex"), RATE_MAX);
     if (wait) throw new HttpError(429, "rate_limited", "Zu viele Anfragen.", wait);

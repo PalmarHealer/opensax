@@ -108,7 +108,8 @@
     ["403", "insufficient_scope", "Das Token darf dieses Tool nicht aufrufen."],
     ["404", "unknown_tool", "Kein Tool mit diesem Namen."],
     ["409", "not_configured", "Voraussetzung fehlt, z.B. kein Stundenplan hinterlegt."],
-    ["429", "rate_limited", "Zu viele Anfragen (Standard 120 pro Minute und Token). `Retry-After` sagt, wann es weitergeht."],
+    ["429", "rate_limited", "Zu viele Anfragen (Standard 120 pro Minute und Token, 30 fehlgeschlagene Anmeldungen pro Minute und IP). `Retry-After` sagt, wann es weitergeht."],
+    ["500", "server_misconfigured", "Der Server kann gespeicherte Anmeldungen nicht entschlüsseln — ein Fehler beim Betreiber, nicht am Token."],
     ["502", "upstream_*", "LernSax hat abgelehnt oder war nicht erreichbar."],
   ];
 </script>

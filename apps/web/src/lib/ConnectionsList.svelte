@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import Icon from "./Icon.svelte";
+  import ConfirmModal from "./ConfirmModal.svelte";
 
   interface Connection {
     id: string;
@@ -33,11 +34,13 @@
       loading = false;
     }
   }
-  async function revoke(c: Connection) {
-    if (!confirm(c.kind === "token" ? `Token „${c.client_name}“ löschen? Programme, die es nutzen, verlieren sofort den Zugriff.` : "Diese Verbindung widerrufen?")) return;
-    const id = c.id;
-    const r = await fetch(`/api/connections/${id}`, { method: "DELETE" });
-    if (r.ok) await reload();
+  let revoking = $state<Connection | null>(null);
+  async function revoke(): Promise<string | void> {
+    if (!revoking) return;
+    const r = await fetch(`/api/connections/${revoking.id}`, { method: "DELETE" });
+    // 404: already gone (e.g. removed in another tab) — just refresh.
+    if (!r.ok && r.status !== 404) return `Entfernen fehlgeschlagen (HTTP ${r.status}).`;
+    await reload();
   }
   // Runs on mount and again whenever the parent bumps `reloadKey`.
   $effect(() => {
@@ -118,7 +121,7 @@
             {/if}
           </div>
           <button
-            onclick={() => revoke(c)}
+            onclick={() => (revoking = c)}
             class="rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 hover:bg-red-500/20"
           >{c.kind === "token" ? "Löschen" : "Widerrufen"}</button>
         </li>
@@ -126,3 +129,18 @@
     </ul>
   {/if}
 </section>
+
+<ConfirmModal
+  open={revoking !== null}
+  onclose={() => (revoking = null)}
+  title={revoking?.kind === "token" ? "Token löschen" : "Verbindung widerrufen"}
+  confirmLabel={revoking?.kind === "token" ? "Löschen" : "Widerrufen"}
+  onconfirm={revoke}
+>
+  {#if revoking}
+    <p>„<span class="font-medium text-zinc-100 [overflow-wrap:anywhere]">{revoking.client_name}</span>“ {revoking.kind === "token" ? "löschen" : "widerrufen"}?</p>
+    <p class="mt-2 text-xs text-zinc-500">
+      {revoking.kind === "token" ? "Programme, die das Token nutzen, verlieren sofort den Zugriff." : "Die App verliert sofort den Zugriff und muss neu verbunden werden."}
+    </p>
+  {/if}
+</ConfirmModal>
