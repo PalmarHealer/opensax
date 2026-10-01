@@ -25,6 +25,18 @@ const SESSION_KEY = (() => {
   return null;
 })();
 
+/** False when LERNSAX_WEB_SESSION_KEY is missing — no bearer can then resolve. */
+export const HAS_SESSION_KEY = SESSION_KEY !== null;
+
+let warnedKeyMismatch = false;
+function warnKeyMismatch() {
+  if (warnedKeyMismatch) return;
+  warnedKeyMismatch = true;
+  console.error(
+    "[lernsax-mcp] a stored session can't be decrypted — LERNSAX_WEB_SESSION_KEY differs from the web app's. API tokens and MCP connections won't work until both containers use the same key.",
+  );
+}
+
 interface ConnectionRecord {
   id: string;
   token_hash: string;
@@ -88,7 +100,12 @@ function decryptSession(rec: SessionDiskRecord): Credentials | null {
   }
 }
 
-function loadCredsForUser(user_id: string): Credentials | null {
+/**
+ * The newest session's credentials, null if the account has none, or
+ * "undecryptable" if it has one our key can't open (key differs from the web
+ * app's).
+ */
+function loadCredsForUser(user_id: string): Credentials | "undecryptable" | null {
   const dir = join(STORE, "sessions");
   if (!existsSync(dir)) return null;
   let best: { rec: SessionDiskRecord; lastSeen: number } | null = null;
@@ -103,7 +120,7 @@ function loadCredsForUser(user_id: string): Credentials | null {
     } catch { /* skip malformed */ }
   }
   if (!best) return null;
-  return decryptSession(best.rec);
+  return decryptSession(best.rec) ?? "undecryptable";
 }
 
 function userIdFromCreds(creds: Credentials | null): string | null {
@@ -143,7 +160,8 @@ export type AuthFailure =
   | "unknown"      // no such token (never issued, or revoked)
   | "expired"      // past the expiry the user chose
   | "no_scope"     // a sign-in token (openid/profile/…) that grants no tool
-  | "no_session";  // the account isn't signed in on any device any more
+  | "no_session"   // the account isn't signed in on any device any more
+  | "server_key";  // LERNSAX_WEB_SESSION_KEY missing or not the web app's
 
 export function resolveBearer(authorization: string | null | undefined): { auth: ResolvedAuth } | { error: AuthFailure } {
   if (!authorization) return { error: "missing" };
@@ -156,6 +174,7 @@ export function resolveBearer(authorization: string | null | undefined): { auth:
   // Only `lernsax` or individual tool scopes may drive the account.
   const tools = toolsForScopes(conn.scopes ?? []);
   if (tools.size === 0) return { error: "no_scope" };
+  if (!SESSION_KEY) return { error: "server_key" };
 
   let user_id = conn.user_id ?? null;
   let creds: Credentials | null = null;
@@ -163,7 +182,12 @@ export function resolveBearer(authorization: string | null | undefined): { auth:
     // Credentials are the ones the account signed in with on the web — an API
     // token carries none of its own, so it works for as long as at least one
     // device session is alive.
-    creds = loadCredsForUser(user_id);
+    const loaded = loadCredsForUser(user_id);
+    if (loaded === "undecryptable") {
+      warnKeyMismatch();
+      return { error: "server_key" };
+    }
+    creds = loaded;
   } else if (conn.user_sid) {
     // Legacy record predating the multi-device refactor: fall back to the
     // single session file the connection was issued against.
@@ -181,10 +205,4 @@ export function resolveBearer(authorization: string | null | undefined): { auth:
       expires_at: conn.expires_at ?? 0,
     },
   };
-}
-
-/** Resolve an Authorization header to LernSax credentials, or null. */
-export function authFromHeader(authorization: string | null | undefined): ResolvedAuth | null {
-  const r = resolveBearer(authorization);
-  return "auth" in r ? r.auth : null;
 }

@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SessionCache } from "@lernsax/core";
 import { buildServer, defaultCache } from "./server.js";
-import { authFromHeader } from "./auth.js";
+import { HAS_SESSION_KEY, resolveBearer } from "./auth.js";
 import { API_PATH, handleRest } from "./rest.js";
 
 const MCP_PATH = process.env.LERNSAX_MCP_HTTP_PATH ?? "/mcp";
@@ -81,7 +81,17 @@ export async function startHttpServer(host: string, port: number): Promise<{ clo
       // Resolve OAuth bearer to LernSax credentials. We require a valid token
       // unless explicitly opted out (LERNSAX_MCP_ALLOW_ANON=1) — without this
       // Claude.ai's connector treats the endpoint as unauthenticated.
-      const auth = authFromHeader(req.headers.authorization ?? null);
+      const resolved = resolveBearer(req.headers.authorization ?? null);
+      if ("error" in resolved && resolved.error === "server_key") {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32603, message: "Server misconfigured: LERNSAX_WEB_SESSION_KEY is missing or differs from the web app's." },
+        }));
+        return;
+      }
+      const auth = "auth" in resolved ? resolved.auth : null;
       if (!auth && !ALLOW_ANON && !AUTH_TOKEN) {
         const hadBearer = !!req.headers.authorization;
         res.statusCode = 401;
@@ -122,6 +132,9 @@ export async function startHttpServer(host: string, port: number): Promise<{ clo
   await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
   console.error(`[lernsax-mcp] streamable-http listening on http://${host}:${port}${MCP_PATH}${AUTH_TOKEN ? " (auth required)" : ""}`);
   console.error(`[lernsax-mcp] REST API on http://${host}:${port}${API_PATH}`);
+  if (!HAS_SESSION_KEY) {
+    console.error("[lernsax-mcp] LERNSAX_WEB_SESSION_KEY is not set (or under 32 chars) — no token can be resolved; /mcp and the REST API answer 500 until it matches the web app's key.");
+  }
 
   return {
     cache,
