@@ -201,6 +201,7 @@ Env-Vars (HTTP):
 - `LERNSAX_API_HTTP_PATH` (`/api/v1`) — REST-API, siehe unten
 - `LERNSAX_API_RATE_PER_MIN` (`120`)
 - `LERNSAX_API_AUTH_FAIL_PER_MIN` (`30`) — fehlgeschlagene Anmeldungen pro IP
+- `TRUSTED_PROXY_HOPS` (`1`) — Proxies vor dem Container, siehe DEPLOY.md → Client IPs
 
 ### Verfügbare Tools
 

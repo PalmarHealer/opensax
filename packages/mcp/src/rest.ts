@@ -21,6 +21,23 @@ const MAX_BODY = 32 * 1024 * 1024;
 const RATE_MAX = Number.parseInt(process.env.LERNSAX_API_RATE_PER_MIN ?? "120", 10);
 /** Failed auth attempts per IP and minute — each one scans the token store. */
 const AUTH_FAIL_MAX = Number.parseInt(process.env.LERNSAX_API_AUTH_FAIL_PER_MIN ?? "30", 10);
+const hops = Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? "1", 10);
+const PROXY_HOPS = Number.isFinite(hops) && hops >= 0 ? hops : 1;
+
+/**
+ * The client's IP: the X-Forwarded-For entry `TRUSTED_PROXY_HOPS` from the
+ * right, which our own proxy (or the web app's /api/v1 hop) wrote — entries
+ * left of it are client-supplied. Falls back to the socket address. Same rule
+ * as `clientIp` in the web app.
+ */
+function clientIp(req: IncomingMessage): string {
+  if (PROXY_HOPS > 0) {
+    const raw = req.headers["x-forwarded-for"];
+    const list = (Array.isArray(raw) ? raw.join(",") : raw ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (list.length >= PROXY_HOPS) return list[list.length - PROXY_HOPS]!;
+  }
+  return req.socket.remoteAddress ?? "?";
+}
 
 class HttpError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string, public readonly details?: unknown) {
@@ -143,7 +160,7 @@ export async function handleRest(req: IncomingMessage, res: ServerResponse, cach
       return true;
     }
 
-    const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "?";
+    const ip = clientIp(req);
     const bearer = req.headers.authorization ?? null;
     // Failed auth is limited per IP before the token store is touched; the
     // per-token bucket only exists once the token resolved, so a client can't

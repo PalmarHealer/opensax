@@ -20,6 +20,9 @@ services:
       # The REST API (/api/v1) is served by the MCP container; the web app
       # forwards it there and reads the tool catalog from it.
       LERNSAX_MCP_INTERNAL_URL: ${LERNSAX_MCP_INTERNAL_URL:-http://lernsax-mcp:8765}
+      # Proxies in front of this container that append to X-Forwarded-For;
+      # the client IP is read that many entries from the right (0 = no proxy).
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # Relay all LernSax-bound traffic (JSON-RPC, WebDAV, OnlyOffice login)
       # through a German egress proxy so LernSax sees a DE IP. Leave unset to
       # talk to LernSax directly from the deployment.
@@ -43,6 +46,9 @@ services:
       LERNSAX_MCP_HTTP_PORT: "8765"
       LERNSAX_MCP_HTTP_PATH: "/mcp"
       LERNSAX_MCP_IDLE_TTL_MS: "300000"
+      # Same value as the web app. The web app forwards /api/v1 with the client
+      # IP at that position, so it reads the same here.
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       LERNSAX_DATA_DIR: /app/data
       LERNSAX_WEB_SESSION_KEY: ${LERNSAX_WEB_SESSION_KEY:?set a 32+ char secret}
       # Used to build the WWW-Authenticate resource_metadata URL on 401s.
