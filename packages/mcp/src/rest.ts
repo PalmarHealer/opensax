@@ -7,7 +7,7 @@
  * The web app forwards `/api/v1/*` here, so no reverse-proxy change is needed.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { LernSaxAuthError, LernSaxError, LernSaxTransportError, type SessionCache } from "@lernsax/core";
 import { z } from "zod";
 import { resolveBearer, type AuthFailure } from "./auth.js";
@@ -24,13 +24,36 @@ const AUTH_FAIL_MAX = Number.parseInt(process.env.LERNSAX_API_AUTH_FAIL_PER_MIN 
 const hops = Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? "1", 10);
 const PROXY_HOPS = Number.isFinite(hops) && hops >= 0 ? hops : 1;
 
+const SIGN_KEY = (() => {
+  const key = process.env.LERNSAX_WEB_SESSION_KEY;
+  return key && key.length >= 32 ? key : null;
+})();
+
 /**
- * The client's IP: the X-Forwarded-For entry `TRUSTED_PROXY_HOPS` from the
- * right, which our own proxy (or the web app's /api/v1 hop) wrote — entries
- * left of it are client-supplied. Falls back to the socket address. Same rule
- * as `clientIp` in the web app.
+ * The IP the web app resolved for a call it forwards (`signedClientIp` there).
+ * Those calls carry one more hop than TRUSTED_PROXY_HOPS counts, and we can't
+ * tell them apart from proxy traffic by X-Forwarded-For — so the web app
+ * vouches for the IP with the shared key.
+ */
+function signedIp(req: IncomingMessage): string | null {
+  const raw = req.headers["x-opensax-client-ip"];
+  if (!SIGN_KEY || typeof raw !== "string") return null;
+  const [ip, sig] = raw.split(" ");
+  if (!ip || !sig) return null;
+  const want = createHmac("sha256", SIGN_KEY).update(`client-ip:${ip}`).digest();
+  const got = Buffer.from(sig, "hex");
+  return got.length === want.length && timingSafeEqual(got, want) ? ip : null;
+}
+
+/**
+ * The client's IP: the signed one from the web app if present, else the
+ * X-Forwarded-For entry `TRUSTED_PROXY_HOPS` from the right (what our own
+ * proxy wrote; entries left of it are client-supplied), else the socket
+ * address. Same rule as `clientIp` in the web app.
  */
 function clientIp(req: IncomingMessage): string {
+  const signed = signedIp(req);
+  if (signed) return signed;
   if (PROXY_HOPS > 0) {
     const raw = req.headers["x-forwarded-for"];
     const list = (Array.isArray(raw) ? raw.join(",") : raw ?? "").split(",").map((s) => s.trim()).filter(Boolean);

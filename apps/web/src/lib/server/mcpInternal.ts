@@ -6,11 +6,27 @@
  * the tool catalog from it to offer scopes when a user creates a token.
  */
 import { env } from "$env/dynamic/private";
+import { createHmac } from "node:crypto";
 
 export function mcpInternalUrl(path: string): string {
   const base = (env.LERNSAX_MCP_INTERNAL_URL
     ?? (process.env.NODE_ENV === "production" ? "http://lernsax-mcp:8765" : "http://localhost:8765")).replace(/\/+$/, "");
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/** Header carrying the client IP we resolved, signed so the MCP can trust it. */
+export const CLIENT_IP_HEADER = "x-opensax-client-ip";
+
+/**
+ * `<ip> <hmac>` for `CLIENT_IP_HEADER`, keyed with the shared
+ * LERNSAX_WEB_SESSION_KEY. The MCP can't tell from X-Forwarded-For alone
+ * whether a request came through us or straight from the reverse proxy, so
+ * it only takes the IP we vouch for. Null without a key (dev).
+ */
+export function signedClientIp(ip: string): string | null {
+  const key = env.LERNSAX_WEB_SESSION_KEY;
+  if (!key || key.length < 32) return null;
+  return `${ip} ${createHmac("sha256", key).update(`client-ip:${ip}`).digest("hex")}`;
 }
 
 export interface ToolInfo {
