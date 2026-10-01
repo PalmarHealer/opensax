@@ -200,6 +200,7 @@ Env-Vars (HTTP):
 - `LERNSAX_MCP_IDLE_TTL_MS` (`300000`)
 - `LERNSAX_API_HTTP_PATH` (`/api/v1`) — REST-API, siehe unten
 - `LERNSAX_API_RATE_PER_MIN` (`120`)
+- `LERNSAX_API_AUTH_FAIL_PER_MIN` (`30`) — fehlgeschlagene Anmeldungen pro IP
 
 ### Verfügbare Tools
 
@@ -240,7 +241,8 @@ MCP-Endpoint; dort sieht der Client nur die freigegebenen Tools. Der Scope
 
 - `GET /api/v1/tools` — freigegebene Tools und Ablauf des vorgelegten Tokens
 - Fehler immer als `{ "error": { "code", "message", "details?" } }`
-- 120 Anfragen pro Minute und Token (`LERNSAX_API_RATE_PER_MIN`)
+- 120 Anfragen pro Minute und Token (`LERNSAX_API_RATE_PER_MIN`), 30 fehlgeschlagene
+  Anmeldungen pro Minute und IP (`LERNSAX_API_AUTH_FAIL_PER_MIN`)
 - `files_download` liefert die Datei selbst statt Base64
 
 Ausgeliefert wird die API vom MCP-Container; die Web-App reicht `/api/v1/*`

@@ -19,6 +19,8 @@ export const API_PATH = (process.env.LERNSAX_API_HTTP_PATH ?? "/api/v1").replace
 /** Largest request body we read — room for a ~20MB file as base64. */
 const MAX_BODY = 32 * 1024 * 1024;
 const RATE_MAX = Number.parseInt(process.env.LERNSAX_API_RATE_PER_MIN ?? "120", 10);
+/** Failed auth attempts per IP and minute — each one scans the token store. */
+const AUTH_FAIL_MAX = Number.parseInt(process.env.LERNSAX_API_AUTH_FAIL_PER_MIN ?? "30", 10);
 
 class HttpError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string, public readonly details?: unknown) {
@@ -37,7 +39,7 @@ const AUTH_MESSAGES: Record<AuthFailure, [string, string]> = {
   ],
 };
 
-// Sliding window per token (or per IP for unauthenticated calls). One process,
+// Sliding window per valid token, plus per IP for failed auth. One process,
 // so memory is fine — same trade-off as the web app's limiter.
 const hits = new Map<string, number[]>();
 setInterval(() => {
@@ -49,10 +51,12 @@ setInterval(() => {
   }
 }, 5 * 60_000).unref?.();
 
-function rateLimited(key: string): number {
+/** Seconds to wait if `key` is at `max`, else 0. Counts a hit unless `record` is false. */
+function rateLimited(key: string, max: number, record = true): number {
   const now = Date.now();
   const list = (hits.get(key) ?? []).filter((t) => now - t < 60_000);
-  if (list.length >= RATE_MAX) return Math.max(1, Math.ceil((list[0]! + 60_000 - now) / 1000));
+  if (list.length >= max) return Math.max(1, Math.ceil((list[0]! + 60_000 - now) / 1000));
+  if (!record) return 0;
   list.push(now);
   hits.set(key, list);
   return 0;
@@ -141,15 +145,21 @@ export async function handleRest(req: IncomingMessage, res: ServerResponse, cach
 
     const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "?";
     const bearer = req.headers.authorization ?? null;
-    const limitKey = bearer ? createHash("sha256").update(bearer).digest("hex") : `ip:${ip}`;
-    const wait = rateLimited(limitKey);
-    if (wait) throw new HttpError(429, "rate_limited", "Zu viele Anfragen.", wait);
+    // Failed auth is limited per IP before the token store is touched; the
+    // per-token bucket only exists once the token resolved, so a client can't
+    // dodge the limit by sending a fresh random bearer each time.
+    const failKey = `authfail:${ip}`;
+    const failWait = rateLimited(failKey, AUTH_FAIL_MAX, false);
+    if (failWait) throw new HttpError(429, "rate_limited", "Zu viele fehlgeschlagene Anmeldungen.", failWait);
 
     const resolved = resolveBearer(bearer);
     if ("error" in resolved) {
+      rateLimited(failKey, AUTH_FAIL_MAX);
       const [code, message] = AUTH_MESSAGES[resolved.error];
       throw new HttpError(resolved.error === "no_scope" ? 403 : 401, code, message);
     }
+    const wait = rateLimited(createHash("sha256").update(bearer!).digest("hex"), RATE_MAX);
+    if (wait) throw new HttpError(429, "rate_limited", "Zu viele Anfragen.", wait);
     const auth = resolved.auth;
 
     if (sub === "tools") {

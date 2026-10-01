@@ -37,6 +37,9 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
+      - name: Test MCP / REST API
+        run: pnpm --filter @lernsax/mcp test
+
       - name: Build web app
         run: pnpm --filter @lernsax/web build
 
