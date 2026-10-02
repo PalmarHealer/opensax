@@ -4,7 +4,7 @@
   import Icon from "$lib/Icon.svelte";
   import ComposeWindow from "$lib/ComposeWindow.svelte";
   import AvatarMenu from "$lib/AvatarMenu.svelte";
-  import { NAV_TABS, GROUP_COOKIE, loadNavConfig, scopesFor, groupScope, tabById, mobileBottomTabs, type NavConfig } from "$lib/nav";
+  import { NAV_TABS, GROUP_COOKIE, loadNavConfig, scopesFor, groupScope, tabById, titleFor, mobileBottomTabs, type NavConfig } from "$lib/nav";
   import { theme } from "$lib/themeStore.svelte";
 
   let { data, children } = $props();
@@ -141,6 +141,8 @@
     goto(path + u.search, { invalidateAll: true });
   }
 </script>
+
+<svelte:head><title>{titleFor(page.url.pathname)}</title></svelte:head>
 
 {#if navConfig.mode === "topnav"}
   <!-- ─── Top navigation layout ────────────────────────────────────────── -->
