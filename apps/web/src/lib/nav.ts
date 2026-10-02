@@ -139,6 +139,18 @@ export function saveNavConfig(cfg: NavConfig): void {
   localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(cfg));
 }
 
+/** Seiten, die keinen Eintrag in der Navigationsleiste haben, aber einen Titel brauchen. */
+const EXTRA_TITLES: Record<string, string> = { "/api-docs": "API-Dokumentation" };
+
+/** Browser-Tab-Titel für einen Pfad: „Bereich · OpenSax", die Übersicht nur „OpenSax". */
+export function titleFor(pathname: string): string {
+  const match = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const label =
+    NAV_TABS.find((t) => t.href !== "/" && match(t.href))?.label ??
+    Object.entries(EXTRA_TITLES).find(([href]) => match(href))?.[1];
+  return label ? `${label} · OpenSax` : "OpenSax";
+}
+
 export function tabById(id: string): NavTab | undefined {
   return NAV_TABS.find((t) => t.id === id);
 }
