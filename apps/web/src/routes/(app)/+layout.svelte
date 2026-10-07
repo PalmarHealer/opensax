@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
   import ComposeWindow from "$lib/ComposeWindow.svelte";
+  import FeedbackWizard from "$lib/FeedbackWizard.svelte";
   import AvatarMenu from "$lib/AvatarMenu.svelte";
   import { NAV_TABS, GROUP_COOKIE, loadNavConfig, scopesFor, groupScope, tabById, titleFor, mobileBottomTabs, type NavConfig } from "$lib/nav";
   import { theme } from "$lib/themeStore.svelte";
@@ -343,3 +344,4 @@
 </nav>
 
 <ComposeWindow />
+<FeedbackWizard />

@@ -185,11 +185,29 @@ Users see and revoke active connections under **Einstellungen → Verbindungen**
 
 To bypass auth for local testing (e.g. with the MCP Inspector), set `LERNSAX_MCP_ALLOW_ANON=1` on the `lernsax-mcp` container.
 
+## Feedback (optional)
+
+The avatar menu's "Feedback / Fehler melden" wizard POSTs each report as JSON
+to `FEEDBACK_WEBHOOK_URL` — typically an n8n Webhook node, so where reports end
+up (GitHub issue, Nextcloud, mail …) is decided in the workflow. If
+`FEEDBACK_WEBHOOK_SECRET` is set it is sent as `X-OpenSax-Secret`; check it in
+the workflow (Header Auth). Without a URL, or when the webhook fails, reports
+are written to `/app/data/feedback/<id>.json` (+ `<id>.jpg`).
+
+The payload carries `id`, `type` (`bug` · `feature` · `feedback` · `question`),
+`title`, the answers in `fields`, `contact` (`method` `none` · `lernsax` ·
+`manual`, plus `value`), and — only if the user ticked them — `account`,
+`config`, `logs` and `screenshot` (`{ filename, mime, base64 }`).
+`markdown` is a ready-made description **without** contact and account data,
+e.g. for an issue body; `contact` and `account` hold personal data, so keep
+them out of anything public.
+
 ## Data persistence
 
 | Volume                  | Contents                                          |
 |-------------------------|---------------------------------------------------|
 | `lernsax-web-data`      | Encrypted session blobs (`/app/data/sessions`) + connection records — OAuth connections and API tokens, token hashes only (`/app/data/connections`); shared between web and MCP. |
+| `lernsax-web-data` (feedback) | Feedback reports, only when no webhook is configured or it failed (`/app/data/feedback`). |
 | `onlyoffice-*`          | DocumentServer data, logs, file cache.            |
 
 Sessions and connections survive `docker compose down`/`up`; deleting the volume forces every user to re-authenticate.

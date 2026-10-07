@@ -27,6 +27,10 @@ services:
       # through a German egress proxy so LernSax sees a DE IP. Leave unset to
       # talk to LernSax directly from the deployment.
       LERNSAX_PROXY_URL: ${LERNSAX_PROXY_URL:-}
+      # Feedback wizard: reports are POSTed here (e.g. an n8n webhook). Unset
+      # = they are stored under /app/data/feedback instead.
+      FEEDBACK_WEBHOOK_URL: ${FEEDBACK_WEBHOOK_URL:-}
+      FEEDBACK_WEBHOOK_SECRET: ${FEEDBACK_WEBHOOK_SECRET:-}
     ports:
       # Bind to BIND_HOST so only the reverse proxy on the same network can
       # reach us. Defaults to all interfaces — set BIND_HOST in .env to lock
