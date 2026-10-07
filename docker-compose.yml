@@ -65,7 +65,13 @@ services:
       - lernsax-web-data:/app/data
 
   onlyoffice:
-    image: onlyoffice/documentserver:8.2
+    # Euro-Office (https://github.com/Euro-Office/DocumentServer), the European
+    # fork of OnlyOffice: same editor API (api.js, DocsAPI, JWT env vars), but
+    # everything lives under euro-office paths instead of onlyoffice ones.
+    # Service and container keep their old names so OO_INTERNAL_HOST and the
+    # reverse proxy's upstream (lernsax-onlyoffice:80) still match. Pinned to a
+    # release tag — `latest` tracks main.
+    image: ghcr.io/euro-office/documentserver:${EUROOFFICE_TAG:-v9.3.4-hotfix.1}
     container_name: lernsax-onlyoffice
     restart: unless-stopped
     environment:
@@ -77,12 +83,12 @@ services:
     ports:
       - "${BIND_HOST:-0.0.0.0}:3380:80"
     volumes:
-      - onlyoffice-data:/var/www/onlyoffice/Data
-      - onlyoffice-logs:/var/log/onlyoffice
-      - onlyoffice-cache:/var/lib/onlyoffice/documentserver/App_Data/cache/files
+      - eurooffice-data:/var/www/euro-office/Data
+      - eurooffice-logs:/var/log/euro-office
+      - eurooffice-cache:/var/lib/euro-office/documentserver/App_Data/cache/files
 
 volumes:
   lernsax-web-data:
-  onlyoffice-data:
-  onlyoffice-logs:
-  onlyoffice-cache:
+  eurooffice-data:
+  eurooffice-logs:
+  eurooffice-cache:
