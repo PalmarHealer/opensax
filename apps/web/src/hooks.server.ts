@@ -14,6 +14,7 @@ const RATE_RULES: Array<{ match: (path: string, method: string) => boolean; rule
   { match: (p, m) => p === "/oauth/token" && m === "POST", rule: { max: 30, windowMs: 60_000 } },
   { match: (p, m) => p === "/oauth/register" && m === "POST", rule: { max: 5, windowMs: 60_000 } },
   { match: (p, m) => p === "/oauth/authorize" && m === "POST", rule: { max: 20, windowMs: 60_000 } },
+  { match: (p, m) => p === "/api/feedback" && m === "POST", rule: { max: 5, windowMs: 10 * 60_000 } },
 ];
 
 async function rateLimitKeySuffix(rule: RateRule, request: Request): Promise<string> {

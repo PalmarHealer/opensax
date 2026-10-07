@@ -2,6 +2,7 @@
   import Icon from "$lib/Icon.svelte";
   import { avatarColor, initials } from "$lib/avatar";
   import { theme } from "$lib/themeStore.svelte";
+  import { feedback } from "$lib/feedbackStore.svelte";
 
   interface Props {
     displayName?: string;
@@ -142,6 +143,13 @@
             <Icon name="dots" size={16} /> Apps
           </button>
         {/if}
+        <button
+          type="button"
+          onclick={() => { open = false; feedback.start(); }}
+          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-900"
+        >
+          <Icon name="message-report" size={16} /> Feedback / Fehler melden
+        </button>
         <a
           href="/settings"
           onclick={() => (open = false)}

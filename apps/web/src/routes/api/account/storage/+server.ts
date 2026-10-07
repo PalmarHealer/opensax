@@ -131,6 +131,16 @@ export const GET: RequestHandler = async ({ cookies }) => {
       mcp_api_session: { ttl_minutes: 5, scope: "im Arbeitsspeicher des MCP-/API-Servers, pro Account, verfällt 5 min nach dem letzten Aufruf", stored: ["LernSax-Session-ID", "Profil (whoami)", "Gruppenmitgliedschaften"] },
       rate_limit: { ttl_minutes: 60, scope: "im Arbeitsspeicher, zum Schutz vor Missbrauch", stored: ["IP-Adresse und ggf. Login-Email bei Anmelde- und OAuth-Versuchen", "Hash des API-Tokens bei API-Aufrufen", "Zeitpunkte der Anfragen"] },
     },
+    // Nur was jemand selbst über „Feedback / Fehler melden“ abschickt.
+    feedback: {
+      scope: "nur wenn du selbst eine Meldung abschickst, nicht mit deinem Account verknüpft",
+      stored: [
+        "Deine Antworten im Feedback-Wizard",
+        "Nur wenn angekreuzt: Screenshot, Browser-Logs, technische Infos ohne Namen, Account-Daten (Name, Login, Schule, Klassen)",
+        "Nur wenn gewählt: Kontaktweg (LernSax-Mail oder selbst eingegebene Mail/Telefonnummer)",
+        "Wird an das Feedback-System der Betreiber weitergeleitet; nur wenn keins eingerichtet ist, bleibt die Meldung auf diesem Server",
+      ],
+    },
     // Nicht bei uns, aber auf demselben Server: der Dokumentserver fürs
     // Bearbeiten im Browser. Er bekommt die Datei, solange sie offen ist.
     office: {

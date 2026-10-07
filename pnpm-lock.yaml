@@ -29,6 +29,9 @@ importers:
       isomorphic-dompurify:
         specifier: ^2.16.0
         version: 2.36.0
+      modern-screenshot:
+        specifier: ^4.7.0
+        version: 4.7.0
     devDependencies:
       '@sveltejs/adapter-node':
         specifier: ^5.2.9
@@ -1264,6 +1267,9 @@ packages:
   mime-types@3.0.2:
     resolution: {integrity: sha512-Lbgzdk0h4juoQ9fCKXW4by0UJqj+nOOrI9MJ1sSj4nI8aI2eo1qmvQEie4VD1glsS250n15LsWsYtCugiStS5A==}
     engines: {node: '>=18'}
+
+  modern-screenshot@4.7.0:
+    resolution: {integrity: sha512-9YxN+ddPSMMlhylOv25VHzXrl9u67QRxoh7+SEewGtgUw7t6hHTrjptSDJUSne9oG4Xk/h2cwG15nIt4Hc9ujg==}
 
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
@@ -2591,6 +2597,8 @@ snapshots:
   mime-types@3.0.2:
     dependencies:
       mime-db: 1.54.0
+
+  modern-screenshot@4.7.0: {}
 
   mri@1.2.0: {}
 

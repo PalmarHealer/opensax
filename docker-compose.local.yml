@@ -20,6 +20,10 @@ services:
       # Proxies in front of this container that append to X-Forwarded-For;
       # the client IP is read that many entries from the right (0 = no proxy).
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # Feedback wizard: reports are POSTed here (e.g. an n8n webhook). Unset
+      # = they are stored under /app/data/feedback instead.
+      FEEDBACK_WEBHOOK_URL: ${FEEDBACK_WEBHOOK_URL:-}
+      FEEDBACK_WEBHOOK_SECRET: ${FEEDBACK_WEBHOOK_SECRET:-}
     ports:
       # Bind to all interfaces by default so a private/VPN IP and 127.0.0.1
       # are both reachable. Override with BIND_HOST in `.env` to lock down.

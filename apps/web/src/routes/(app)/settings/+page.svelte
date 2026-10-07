@@ -38,6 +38,7 @@
       records: Array<{ id: string; kind?: "oauth" | "token"; client_name: string; scopes: string[]; created_at: number; last_used_at: number; expires_at?: number }>;
     };
     office?: { scope: string; stored: string[] };
+    feedback?: { scope: string; stored: string[] };
     davinci?: {
       present: boolean;
       scope?: string;
@@ -865,6 +866,16 @@
                   </ul>
                 {/if}
               </div>
+
+              {#if storage.feedback}
+                <div>
+                  <p class="font-medium">Feedback-Meldungen</p>
+                  <p class="text-xs text-zinc-500">{storage.feedback.scope}.</p>
+                  <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
+                    {#each storage.feedback.stored as line}<li>· {line}</li>{/each}
+                  </ul>
+                </div>
+              {/if}
 
               {#if storage.office}
                 <div>
