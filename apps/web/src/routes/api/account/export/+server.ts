@@ -3,16 +3,23 @@ import type { RequestHandler } from "./$types";
 import { getCredentialsForSession, getUserIdForSession, listSessionsForUser } from "$lib/server/sessionStore";
 import { listForUser } from "$lib/server/connectionStore";
 import { loadConfig as loadDavinciConfig } from "$lib/server/davinciStore";
+import { getOnboarding } from "$lib/server/onboardingStore";
 
 const COOKIE = "lernsax_sid";
 
 /**
- * Full data dump for the calling user — credentials are decrypted on the
- * fly so the user can take them with them. Connection records (OAuth and API
+ * Full data dump for the calling user. Connection records (OAuth and API
  * tokens alike) expose only the hash of any tokens (the bare tokens are never
  * persisted).
+ *
+ * Passwords are left out unless asked for — `?passwords=lernsax`,
+ * `?passwords=davinci` or both, comma-separated. Settings asks first and warns:
+ * an export is a file people forward, and a forwarded file with a plain-text
+ * password in it is a leaked account.
  */
-export const GET: RequestHandler = async ({ cookies }) => {
+export const GET: RequestHandler = async ({ cookies, url }) => {
+  const wanted = new Set((url.searchParams.get("passwords") ?? "").split(",").map((s) => s.trim()));
+  const OMITTED = "(nicht exportiert — beim Export abgewählt)";
   const sid = cookies.get(COOKIE);
   if (!sid) throw error(401, "no session");
   const creds = getCredentialsForSession(sid);
@@ -26,21 +33,23 @@ export const GET: RequestHandler = async ({ cookies }) => {
   const davinci = user_id ? loadDavinciConfig(user_id) : null;
   const dump = {
     exported_at: new Date().toISOString(),
-    note: "Vollständiger Export aller Daten, die OpenSax zu deinem Account speichert. Die Anmeldedaten unten lagen verschlüsselt (AES-256-GCM) auf dem Server und wurden nur für diesen Export entschlüsselt.",
+    note: "Vollständiger Export aller Daten, die OpenSax zu deinem Account speichert. Die Anmeldedaten lagen verschlüsselt (AES-256-GCM) auf dem Server; Passwörter stehen nur drin, wenn du sie beim Export ausdrücklich ausgewählt hast — dann diese Datei bitte niemandem weitergeben.",
+    passwords_included: { lernsax: wanted.has("lernsax"), davinci: !!davinci && wanted.has("davinci") },
     user_id: user_id ?? null,
-    credentials: { email: creds.email, password: creds.password },
+    credentials: { email: creds.email, password: wanted.has("lernsax") ? creds.password : OMITTED },
     davinci: davinci
       ? {
           endpoint: davinci.endpoint,
           resolved_endpoint: davinci.resolvedEndpoint ?? null,
           source_type: davinci.sourceType ?? null,
           username: davinci.username,
-          password: davinci.password,
+          password: wanted.has("davinci") ? davinci.password : OMITTED,
           class_code: davinci.classCode ?? null,
           teacher_code: davinci.teacherCode ?? null,
           include_supervisions: davinci.includeSupervisions ?? false,
         }
       : null,
+    onboarding: user_id ? getOnboarding(user_id) : null,
     sessions: sessionsList.map((s) => ({
       device_id: s.device_id,
       current: s.isCurrent,

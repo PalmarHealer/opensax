@@ -42,7 +42,9 @@ html.light .bg-red-500\/20 { background-color: rgb(239 68 68 / 0.22); }
 html.light .hover\:bg-red-500\/10:hover { background-color: rgb(239 68 68 / 0.15); }
 html.light .hover\:bg-red-500\/20:hover { background-color: rgb(239 68 68 / 0.25); }
 html.light .bg-zinc-950\/40 { background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1)); }
-html.light .divide-zinc-900 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(228 228 231 / 1); }
+/* Tailwind 4 colours every child but the last; only the bordered ones show it. */
+html.light .divide-zinc-800 > *,
+html.light .divide-zinc-900 > * { border-color: rgb(228 228 231 / 1); }
 
 /* Status colours (timetable changes, connection results). The -300 shades read
    fine on near-black but wash out to nothing on a light background, and the
