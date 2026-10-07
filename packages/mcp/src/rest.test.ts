@@ -50,6 +50,8 @@ const fakeClient = {
   mail: {
     getFolders: async () => [{ id: "INBOX" }],
     getMessages: async (args: unknown) => { calls.push(args); return [{ id: "1" }]; },
+    downloadAttachment: async () => ({ name: "Stundenplan.png", size: 2, data: new Uint8Array([7, 8]) }),
+    getAttachmentSessionFile: async () => ({ download_url: "https://example.invalid/a" }),
   },
   files: {
     download: async () => ({ name: "Bericht ä.pdf", size: 3, data: new Uint8Array([1, 2, 3]) }),
@@ -142,6 +144,14 @@ test("files_download answers with the raw file", async () => {
   assert.equal(r.headers.get("content-type"), "application/pdf");
   assert.match(r.headers.get("content-disposition") ?? "", /Bericht%20%C3%A4\.pdf/);
   assert.deepEqual([...new Uint8Array(await r.arrayBuffer())], [1, 2, 3]);
+});
+
+test("mail_attachment_download answers with the raw file", async () => {
+  const r = await call("/mail_attachment_download", "tok-full", { folder_id: "INBOX", message_id: "1", file_id: "a1" });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get("content-type"), "image/png");
+  assert.match(r.headers.get("content-disposition") ?? "", /Stundenplan\.png/);
+  assert.deepEqual([...new Uint8Array(await r.arrayBuffer())], [7, 8]);
 });
 
 test("timetable without config explains itself", async () => {

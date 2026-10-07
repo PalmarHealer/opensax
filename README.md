@@ -245,7 +245,7 @@ MCP-Endpoint; dort sieht der Client nur die freigegebenen Tools. Der Scope
 - Fehler immer als `{ "error": { "code", "message", "details?" } }`
 - 120 Anfragen pro Minute und Token (`LERNSAX_API_RATE_PER_MIN`), 30 fehlgeschlagene
   Anmeldungen pro Minute und IP (`LERNSAX_API_AUTH_FAIL_PER_MIN`)
-- `files_download` liefert die Datei selbst statt Base64
+- `files_download` und `mail_attachment_download` liefern die Datei selbst statt Base64
 
 Ausgeliefert wird die API vom MCP-Container; die Web-App reicht `/api/v1/*`
 an `LERNSAX_MCP_INTERNAL_URL` (Default `http://lernsax-mcp:8765`) weiter, eine
