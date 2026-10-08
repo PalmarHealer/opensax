@@ -58,6 +58,8 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
   /** True if the tool only reads. Drives the "read-only" preset for tokens. */
   readOnly: boolean;
   shape: S;
+  /** Answers with a file (`kind: "file"`) — REST sends raw bytes, OpenAPI documents octet-stream. */
+  returnsFile?: boolean;
   run: (ctx: ToolContext, args: z.objectOutputType<S, z.ZodTypeAny>) => Promise<ToolResult>;
 }
 
@@ -197,12 +199,32 @@ export const TOOLS: readonly ToolDef[] = [
   }),
   tool({
     name: "mail_read",
-    description: "Read one mail in full (body + attachment metadata).",
+    description: "Read one mail in full (body + attachment metadata). Fetch an attachment's contents with mail_attachment_download, passing its `id` as `file_id`.",
     category: "mail",
     readOnly: true,
     shape: { folder_id: z.string(), message_id: z.string() },
     run: async (ctx, { folder_id, message_id }) =>
       ok(await (await ctx.client()).mail.readMessage(folder_id, message_id)),
+  }),
+  tool({
+    name: "mail_attachment_download",
+    description: "Download a mail attachment. `file_id` is the attachment's `id` from mail_read. Over MCP it is inlined as base64 (embedded resource); attachments larger than ~6MB come back as a temporary direct-download URL instead. The REST API answers with the raw file.",
+    category: "mail",
+    readOnly: true,
+    returnsFile: true,
+    shape: { folder_id: z.string(), message_id: z.string(), file_id: z.string() },
+    run: async (ctx, args) => {
+      const c = await ctx.client();
+      const { name, size, data } = await c.mail.downloadAttachment(args);
+      return {
+        kind: "file",
+        id: args.file_id,
+        name,
+        size,
+        data,
+        url: async () => (await c.mail.getAttachmentSessionFile(args)).download_url,
+      };
+    },
   }),
   tool({
     name: "mail_send",
@@ -562,6 +584,7 @@ export const TOOLS: readonly ToolDef[] = [
     description: "Download a file. Over MCP it is inlined as base64 (embedded resource); files larger than ~6MB are not inlined there — use files_download_url instead. The REST API answers with the raw file.",
     category: "files",
     readOnly: true,
+    returnsFile: true,
     shape: { group: z.string().optional(), id: z.string() },
     run: async (ctx, { group, id }) => {
       const c = await ctx.client();

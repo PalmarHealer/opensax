@@ -54,7 +54,11 @@ export interface MailFull extends MailEnvelope {
 }
 
 export class MailApi {
-  constructor(private readonly session: LernSaxSession) {}
+  constructor(
+    private readonly session: LernSaxSession,
+    /** for attachment downloads, which leave the JSON-RPC channel — see {@link downloadAttachment} */
+    private readonly fetchImpl: typeof fetch = globalThis.fetch,
+  ) {}
 
   private focus() {
     return { object: "mailbox" } as const;
@@ -157,6 +161,29 @@ export class MailApi {
     const r = await this.session.call("export_session_file", params, this.focus());
     const file = (r.file ?? r) as { id: string; name: string; size: number; download_url: string };
     return file;
+  }
+
+  /**
+   * Fetch an attachment's bytes. Stages it via {@link getAttachmentSessionFile}
+   * and downloads the URL that returns. The URL carries a session-scoped token,
+   * so it goes through the client's fetch (the relay, if one is configured)
+   * rather than the global one: LernSax may reject a download arriving from a
+   * different IP than the session.
+   */
+  async downloadAttachment(params: {
+    folder_id: string;
+    message_id: number | string;
+    file_id: string;
+  }): Promise<{ name: string; size: number; data: Uint8Array }> {
+    const info = await this.getAttachmentSessionFile(params);
+    if (!info?.download_url) throw new Error("export_session_file: no download URL");
+    // LernSax sometimes leaves a bare `%` from the filename in the path, which
+    // makes the URL unparseable — escape those, keep real escapes.
+    const url = new URL(info.download_url.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
+    const res = await this.fetchImpl(url);
+    if (!res.ok) throw new Error(`attachment download failed: HTTP ${res.status}`);
+    const data = new Uint8Array(await res.arrayBuffer());
+    return { name: info.name || params.file_id, size: data.length, data };
   }
 
   /**
