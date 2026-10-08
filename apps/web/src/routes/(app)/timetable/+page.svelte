@@ -165,6 +165,26 @@
   const phaseOf = (date: string, bi: number): "" | "now" | "next" =>
     isNow(date, bi) ? "now" : isNext(date, bi) ? "next" : "";
 
+  // ── Mobil: zum heutigen Tag springen ─────────────────────────────────────
+  // In der Tagesliste steht Montag oben; am Donnerstag müsste man erst an drei
+  // vergangenen Tagen vorbeiscrollen. Einmal pro angezeigter Woche, damit der
+  // Minutentakt von `now` nicht wegzieht, was jemand gerade liest.
+  let scroller = $state<HTMLElement | null>(null);
+  let mobileList = $state<HTMLElement | null>(null);
+  let scrolledFor: string | null = null;
+  $effect(() => {
+    const week = data.weekStart;
+    if (!scroller || !mobileList || scrolledFor === week) return;
+    scrolledFor = week;
+    // Ab `md` ist die Liste ausgeblendet und das Raster zeigt die ganze Woche.
+    if (mobileList.offsetParent === null) return;
+    const today = mobileList.querySelector<HTMLElement>("[data-today]");
+    if (!today) return;
+    // Nur den eigenen Container scrollen — scrollIntoView zöge auch das Layout mit.
+    const top = today.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTop += top - 16;
+  });
+
   /** Tailwind accents per change type — cancelled reads as "gone", not "new". */
   const CHANGE_STYLE: Record<string, string> = {
     cancelled: "border-rose-500/40 bg-rose-500/5",
@@ -306,13 +326,16 @@
       <p class="text-sm text-zinc-500">Keine Stunden in dieser Woche.</p>
     </div>
   {:else}
-    <div class="h-full overflow-auto p-4">
+    <div class="h-full overflow-auto p-4" bind:this={scroller}>
       <!-- Below `md` a column-per-day grid is unreadable, so the same data is
            laid out as a list of days. Both are rendered and toggled in CSS —
            a JS breakpoint store would have to guess during SSR. -->
-      <div class="md:hidden">
+      <div class="md:hidden" bind:this={mobileList}>
         {#each data.days as day, i (day.date)}
-          <section class="mb-4 rounded-2xl border bg-zinc-900/40 p-3 {day.date === todayLocal ? 'border-indigo-500/60' : 'border-zinc-800'}">
+          <section
+            data-today={day.date === todayLocal ? "" : undefined}
+            class="mb-4 rounded-2xl border bg-zinc-900/40 p-3 {day.date === todayLocal ? 'border-indigo-500/60' : 'border-zinc-800'}"
+          >
             <header class="mb-2 flex items-baseline justify-between">
               <h2 class="text-sm font-semibold {day.date === todayLocal ? 'text-indigo-300' : 'text-zinc-200'}">
                 {DAY_NAMES[i]}
