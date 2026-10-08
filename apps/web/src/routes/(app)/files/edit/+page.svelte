@@ -35,7 +35,7 @@
             },
             onError: (e: { data?: { errorCode?: number; errorDescription?: string } }) => {
               status = "error";
-              errorMsg = e.data?.errorDescription ?? `OnlyOffice error ${e.data?.errorCode ?? ""}`;
+              errorMsg = e.data?.errorDescription ?? `Editor-Fehler ${e.data?.errorCode ?? ""}`;
             },
           },
         };
@@ -59,7 +59,7 @@
     };
     script.onerror = () => {
       status = "error";
-      errorMsg = `Konnte OnlyOffice-API nicht laden (${data.apiJsUrl}). Läuft der DocumentServer?`;
+      errorMsg = `Konnte die Editor-API nicht laden (${data.apiJsUrl}). Läuft der DocumentServer?`;
     };
     document.head.appendChild(script);
 
@@ -117,7 +117,7 @@
     <div class="flex shrink-0 items-center gap-2 text-xs text-zinc-500">
       {#if status === "loading"}
         <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-600 border-t-indigo-400"></span>
-        OnlyOffice startet…
+        Editor startet…
       {:else if status === "ready"}
         <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
         Verbunden
@@ -135,7 +135,7 @@
           <div class="mx-auto mb-3 inline-grid h-12 w-12 place-items-center rounded-2xl bg-red-500/10 text-red-300">
             <Icon name="x" size={28} />
           </div>
-          <p class="font-medium text-zinc-200">OnlyOffice nicht erreichbar</p>
+          <p class="font-medium text-zinc-200">Office-Editor nicht erreichbar</p>
           {#if errorMsg}<p class="mt-2 text-xs text-zinc-500">{errorMsg}</p>{/if}
         </div>
       </div>

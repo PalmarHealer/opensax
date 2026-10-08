@@ -159,7 +159,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
     // Nicht bei uns, aber auf demselben Server: der Dokumentserver fürs
     // Bearbeiten im Browser. Er bekommt die Datei, solange sie offen ist.
     office: {
-      scope: "OnlyOffice-Dokumentserver, nur beim Bearbeiten einer Datei im Browser",
+      scope: "Office-Dokumentserver (Euro-Office), nur beim Bearbeiten einer Datei im Browser",
       stored: [
         "Arbeitskopie der geöffneten Datei, solange sie bearbeitet wird; beim Speichern landet sie wieder in LernSax",
         "Der Dokumentserver räumt diese Kopien selbst auf (Standard: spätestens nach einem Tag)",

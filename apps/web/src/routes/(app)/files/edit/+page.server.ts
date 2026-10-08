@@ -67,9 +67,8 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
         chat: false,
         feedback: { visible: false },
         about: false,
-        // Match the editor chrome to our app theme. OnlyOffice 8 ships with
-        // both light + dark variants and a vibrant "default" dark; pick the
-        // matching one.
+        // Match the editor chrome to our app theme. Euro-Office (like
+        // OnlyOffice) ships theme-light/theme-dark among others.
         uiTheme: theme === "dark" ? "theme-dark" : "theme-light",
       },
     },

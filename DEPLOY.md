@@ -1,6 +1,6 @@
 # Deployment
 
-This stack is three Docker containers — a SvelteKit web app, an MCP HTTP server, and an OnlyOffice DocumentServer — meant to sit behind a reverse proxy that terminates TLS.
+This stack is three Docker containers — a SvelteKit web app, an MCP HTTP server, and a Euro-Office DocumentServer (the European OnlyOffice fork) — meant to sit behind a reverse proxy that terminates TLS.
 
 The web and MCP images are built by CI and published to GHCR on every push to `main`:
 
@@ -15,16 +15,16 @@ Each push is tagged `latest` and `sha-<full commit sha>`. `docker-compose.yml` r
 |---------------|--------------------|---------------|------------------------------------------------------|
 | Web app       | `lernsax-web`      | `3000`        | UI + OAuth issuer + OnlyOffice callback              |
 | MCP server    | `lernsax-mcp`      | `8765`        | Streamable-HTTP MCP endpoint at `/mcp` + REST API at `/api/v1` |
-| OnlyOffice    | `lernsax-onlyoffice` | `80`        | DocumentServer for collaborative editing             |
+| Euro-Office   | `lernsax-onlyoffice` | `80`        | DocumentServer for collaborative editing (container name kept from the OnlyOffice days) |
 
 The MCP **must be served from the same hostname as the web app**, mounted at `/mcp`. RFC 9728 / RFC 8414 discovery only works correctly when the protected resource and its authorization server share an origin.
 
-OnlyOffice can live on a separate hostname (it just needs to be reachable from both the user's browser and the web container).
+The DocumentServer can live on a separate hostname (it just needs to be reachable from both the user's browser and the web container).
 
 So a typical deployment uses two public hostnames:
 
 - `https://<app>.example.com`        → web (`:3000`) + MCP (`:8765`, path-routed at `/mcp`)
-- `https://<office>.example.com`     → OnlyOffice (`:80`)
+- `https://<office>.example.com`     → Euro-Office (`:80`)
 
 ## Bring-up
 
@@ -42,7 +42,7 @@ So a typical deployment uses two public hostnames:
 
 2. `docker compose up -d`
 
-3. First run pulls OnlyOffice (~1.5 GB). You can pre-pull with `docker compose pull onlyoffice`.
+3. First run pulls Euro-Office (`ghcr.io/euro-office/documentserver`, a few GB). You can pre-pull with `docker compose pull onlyoffice`.
 
 By default the compose file binds container ports to `BIND_HOST` so you can keep the host's public interface clean and only expose via the reverse proxy.
 
@@ -166,7 +166,7 @@ keeps working. Anything you add by hand needs the same treatment.
 
 ### `<office>.example.com`
 
-Forward everything to `<docker-host>:3380`. Websockets are required (OnlyOffice uses them for live collaboration). No path rules needed.
+Forward everything to `<docker-host>:3380`. Websockets are required (the editor uses them for live collaboration). No path rules needed.
 
 ## Auth flow for AI clients
 
@@ -211,7 +211,7 @@ them out of anything public.
 | `lernsax-web-data`      | Encrypted session blobs (`/app/data/sessions`) + connection records — OAuth connections and API tokens, token hashes only (`/app/data/connections`); shared between web and MCP. |
 | `lernsax-web-data` (onboarding) | One marker per account that the onboarding wizard was finished or skipped (`/app/data/onboarding`); no settings. |
 | `lernsax-web-data` (feedback) | Feedback reports, only when the webhook failed (`/app/data/feedback`). |
-| `onlyoffice-*`          | DocumentServer data, logs, file cache.            |
+| `eurooffice-*`          | DocumentServer data, logs, file cache. Only working copies while a file is open — saving writes back to LernSax. |
 
 Sessions and connections survive `docker compose down`/`up`; deleting the volume forces every user to re-authenticate.
 
@@ -224,4 +224,8 @@ docker compose up -d
 
 In Portainer: *Pull and redeploy* on the stack. To automate it, enable the stack's webhook and store its URL as the `PORTAINER_WEBHOOK_URL` repository secret — CI then calls it after pushing new images.
 
-`onlyoffice` only changes when you bump its image tag in `docker-compose.yml`.
+`onlyoffice` (the Euro-Office service) only changes when you bump its tag — `EUROOFFICE_TAG`, default pinned in `docker-compose.yml`. Releases: https://github.com/Euro-Office/DocumentServer/releases
+
+### Switching from OnlyOffice to Euro-Office
+
+Euro-Office keeps OnlyOffice's editor API and env vars, so `ONLYOFFICE_JWT_SECRET`, `ONLYOFFICE_PUBLIC_URL` and the reverse proxy stay as they are. Its paths differ, so it gets fresh `eurooffice-*` volumes; the old `onlyoffice-*` volumes are unused afterwards and only held working copies — remove them with `docker volume rm` once the editor works. Close open documents before redeploying, otherwise unsaved edits in them are lost.
