@@ -54,6 +54,10 @@ async function capture(): Promise<Screenshot> {
     scale: Math.min(window.devicePixelRatio || 1, 2),
     backgroundColor: getComputedStyle(document.body).backgroundColor,
     timeout: 8000,
+    // The app scrolls inside its own containers (timetable, mail list, …),
+    // not the window. Without this the copy shows each of them from the top
+    // instead of where the user actually was.
+    features: { restoreScrollPosition: true },
     filter: (node) => !(node instanceof Element && node.hasAttribute("data-feedback-ignore")),
   });
   const { url, width, height } = await canvasToJpeg(canvas);

@@ -17,7 +17,14 @@
   type Rect = { x: number; y: number; w: number; h: number };
   let sel = $state<Rect | null>(null);
   let box: HTMLDivElement;
+  let root: HTMLDivElement;
   let busy = $state(false);
+
+  // Der Wizard bleibt beim Öffnen dort stehen, wo „Zuschneiden“ war — meist
+  // weiter unten. Hoch zur Anleitung, damit alles auf einen Blick passt.
+  $effect(() => {
+    root.scrollIntoView({ block: "start" });
+  });
 
   type Drag =
     | { kind: "new"; x0: number; y0: number }
@@ -100,11 +107,16 @@
   const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
 </script>
 
-<div class="space-y-3">
+<div class="space-y-3" bind:this={root}>
   <p class="text-xs text-zinc-500">Ziehe ein Rechteck über den Bereich, der mitgeschickt werden soll. Ecken zum Anpassen, Innenfläche zum Verschieben.</p>
+  <!-- Das Bild muss samt Anleitung und Knöpfen auf den Bildschirm passen: Auf
+       dem Bild zieht jede Berührung einen Ausschnitt auf, scrollen geht dort
+       nicht. Ein Handy-Screenshot ist aber höher als der Dialog — also wird er
+       auf die freie Höhe begrenzt und schmaler dargestellt. -->
+  <div class="flex justify-center rounded-lg bg-zinc-900 p-2">
   <div
     bind:this={box}
-    class="relative cursor-crosshair touch-none select-none overflow-hidden rounded-lg border border-zinc-800"
+    class="relative cursor-crosshair touch-none select-none rounded border border-zinc-700 shadow-md"
     onpointerdown={down}
     onpointermove={move}
     onpointerup={up}
@@ -112,23 +124,36 @@
     role="application"
     aria-label="Ausschnitt wählen"
   >
-    <img {src} alt="Screenshot" class="pointer-events-none block w-full" draggable="false" />
+    <img {src} alt="Screenshot" class="pointer-events-none block h-auto max-h-[calc(100dvh-15rem)] w-auto max-w-full sm:max-h-[55vh]" draggable="false" />
     {#if sel}
-      <!-- Dim everything outside the selection with one giant box-shadow. -->
+      <!-- Dim everything outside the selection with one giant box-shadow,
+           clipped to the image. The frame with its handles sits on a layer of
+           its own so the handles may reach past the image edge. -->
+      <div class="pointer-events-none absolute inset-0 overflow-hidden rounded">
+        <div
+          class="absolute"
+          style="left: {pct(sel.x)}; top: {pct(sel.y)}; width: {pct(sel.w)}; height: {pct(sel.h)}; box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);"
+        ></div>
+      </div>
       <div
         class="absolute cursor-move border-2 border-indigo-400"
-        style="left: {pct(sel.x)}; top: {pct(sel.y)}; width: {pct(sel.w)}; height: {pct(sel.h)}; box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);"
+        style="left: {pct(sel.x)}; top: {pct(sel.y)}; width: {pct(sel.w)}; height: {pct(sel.h)};"
       >
+        <!-- Sichtbar ist ein kleiner Punkt, greifen lässt sich eine Fläche
+             in Fingergröße drumherum. -->
         {#each ["tl", "tr", "bl", "br"] as c}
           <span
             data-corner={c}
-            class="absolute h-3 w-3 rounded-sm border border-white bg-indigo-500
-              {c.includes('t') ? '-top-1.5' : '-bottom-1.5'} {c.includes('l') ? '-left-1.5' : '-right-1.5'}
+            class="absolute grid h-8 w-8 place-items-center
+              {c.includes('t') ? '-top-4' : '-bottom-4'} {c.includes('l') ? '-left-4' : '-right-4'}
               {c === 'tr' || c === 'bl' ? 'cursor-nesw-resize' : 'cursor-nwse-resize'}"
-          ></span>
+          >
+            <span class="pointer-events-none h-3.5 w-3.5 rounded-sm border border-white bg-indigo-500 shadow"></span>
+          </span>
         {/each}
       </div>
     {/if}
+  </div>
   </div>
   <div class="flex justify-end gap-2">
     <button type="button" onclick={oncancel} class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100">Abbrechen</button>
