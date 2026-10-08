@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { fade, fly } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
   import Icon from "$lib/Icon.svelte";
+  import { motion } from "$lib/motion";
 
   /**
    * Gemeinsamer Rahmen für Schritt-für-Schritt-Dialoge (Feedback, Onboarding):
@@ -43,8 +46,9 @@
   });
 </script>
 
-<div data-feedback-ignore class="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm sm:p-4" role="presentation">
+<div data-feedback-ignore class="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm sm:p-4" role="presentation" transition:fade={{ duration: motion(180) }}>
   <div
+    in:fly={{ y: 16, duration: motion(320), easing: cubicOut }}
     role="dialog"
     aria-modal="true"
     aria-labelledby="wizard-title"
@@ -67,7 +71,9 @@
       {#if stepCount > 1}
         <div class="mt-3 flex gap-1" aria-label="Schritt {stepIndex + 1} von {stepCount}">
           {#each { length: stepCount } as _, i}
-            <span class="h-1 flex-1 rounded-full transition {i <= stepIndex ? 'bg-indigo-500' : 'bg-zinc-800'}"></span>
+            <span class="h-1 flex-1 overflow-hidden rounded-full bg-zinc-800">
+              <span class="block h-full rounded-full bg-indigo-500 transition-[width] duration-500 ease-out motion-reduce:transition-none" style="width: {i <= stepIndex ? 100 : 0}%"></span>
+            </span>
           {/each}
         </div>
       {/if}
@@ -75,7 +81,7 @@
 
     {@render banner?.()}
 
-    <div bind:this={body} class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+    <div bind:this={body} class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-5 py-4">
       {@render children()}
     </div>
 
