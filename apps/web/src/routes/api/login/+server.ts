@@ -1,28 +1,44 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { LernSaxClient } from "@lernsax/core";
+import { LernSaxClient, LernSaxLoginError, type LoginFailure } from "@lernsax/core";
 import { createSession, getClientForSession } from "$lib/server/sessionStore";
 import { clientIp } from "$lib/server/rateLimit";
 
 const COOKIE = "lernsax_sid";
 
+const FAILURE_TEXT: Record<LoginFailure, string> = {
+  credentials: "E-Mail oder Passwort ist falsch.",
+  totp_required: "Dein Account ist mit Zwei-Faktor-Anmeldung geschützt. Gib den Code aus deiner Authenticator-App ein.",
+  totp_invalid: "Der Code ist falsch oder wurde schon benutzt. Warte auf den nächsten Code und versuch es noch einmal.",
+  trust_revoked: "Die gespeicherte Anmeldung gilt nicht mehr. Bitte melde dich neu an.",
+  unsupported: "LernSax erlaubt für diesen Account keine Anmeldung mit Passwort. Das kann OpenSax leider nicht.",
+};
+
 export const POST: RequestHandler = async ({ request, cookies, url, getClientAddress }) => {
-  let body: { email?: string; password?: string };
+  let body: { email?: string; password?: string; totp?: string };
   try {
     body = await request.json();
   } catch {
     return json({ error: "invalid JSON body" }, { status: 400 });
   }
   const { email, password } = body;
+  const totp = body.totp?.replace(/\s+/g, "") || undefined;
   if (!email || !password) {
     return json({ error: "email and password required" }, { status: 400 });
   }
 
-  // Verify credentials by attempting login once.
-  const probe = new LernSaxClient({ email, password });
+  // Verify credentials by attempting login once. With a TOTP code this also
+  // registers an auth token — the code is spent after this call, so the
+  // token is what we keep for every later re-login.
+  const probe = new LernSaxClient({ email, password, totp });
+  let trustToken: string | undefined;
   try {
     await probe.login();
+    trustToken = probe.session.issuedTrustToken ?? undefined;
   } catch (err) {
+    if (err instanceof LernSaxLoginError) {
+      return json({ error: FAILURE_TEXT[err.reason], code: err.reason }, { status: 401 });
+    }
     return json({ error: (err as Error).message }, { status: 401 });
   } finally {
     probe.logout().catch(() => {});
@@ -30,7 +46,7 @@ export const POST: RequestHandler = async ({ request, cookies, url, getClientAdd
 
   const ip = clientIp(request.headers, getClientAddress?.() ?? null);
   const userAgent = request.headers.get("user-agent") ?? undefined;
-  const sid = createSession({ email, password }, { firstIp: ip, userAgent });
+  const sid = createSession({ email, password, trustToken }, { firstIp: ip, userAgent });
   // Detect HTTPS via either the request URL or the proxy's X-Forwarded-Proto
   // — NODE_ENV alone gives wrong answers behind TLS-terminating proxies.
   const isSecure =

@@ -5,8 +5,12 @@
   let { data } = $props();
   let email = $state("");
   let password = $state("");
+  let totp = $state("");
+  // Set once LernSax asks for a code; the field stays until the page reloads.
+  let needsTotp = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
+  const reloginRejected = page.url.searchParams.get("reason") === "relogin";
   let cookiesOk = $state(false);
   let cookieInfoOpen = $state(false);
   let disclaimerOpen = $state(false);
@@ -19,11 +23,17 @@
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, totp: needsTotp ? totp : undefined }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        error = body.error ?? `HTTP ${res.status}`;
+        // Asking for the code isn't an error the first time — the field says enough.
+        const firstAsk = body.code === "totp_required" && !needsTotp;
+        if (body.code === "totp_required" || body.code === "totp_invalid") {
+          needsTotp = true;
+          totp = "";
+        }
+        error = firstAsk ? null : (body.error ?? `HTTP ${res.status}`);
         return;
       }
       const next = new URLSearchParams(page.url.search).get("next") || "/";
@@ -66,6 +76,36 @@
           class="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
         />
       </label>
+
+      {#if needsTotp}
+        <label class="block">
+          <span class="mb-1 block text-xs font-medium text-zinc-400">Code aus der Authenticator-App</span>
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            type="text"
+            bind:value={totp}
+            required
+            autofocus
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9 ]*"
+            maxlength="8"
+            class="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm tracking-widest outline-none focus:border-indigo-500"
+            placeholder="123456"
+          />
+          <span class="mt-1 block text-xs text-zinc-500">
+            Dein Account nutzt Zwei-Faktor-Anmeldung. OpenSax legt dafür in LernSax eine Vertrauensstellung an,
+            damit du den Code nur einmal brauchst. Beim Abmelden wird sie wieder gelöscht.
+          </span>
+        </label>
+      {/if}
+
+      {#if reloginRejected && !error && !needsTotp}
+        <p class="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+          LernSax hat deine gespeicherte Anmeldung nicht mehr angenommen — etwa weil sich das Passwort geändert hat
+          oder die Zwei-Faktor-Anmeldung eingeschaltet wurde. Bitte melde dich neu an.
+        </p>
+      {/if}
 
       {#if error}
         <p class="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>

@@ -8,7 +8,7 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { LernSaxAuthError, LernSaxError, LernSaxTransportError, type SessionCache } from "@lernsax/core";
+import { LernSaxAuthError, LernSaxError, LernSaxLoginError, LernSaxTransportError, type SessionCache } from "@lernsax/core";
 import { z } from "zod";
 import { resolveBearer, type AuthFailure } from "./auth.js";
 import { buildOpenApi } from "./openapi.js";
@@ -151,7 +151,7 @@ function mapError(err: unknown): HttpError {
     return new HttpError(400, "invalid_arguments", "Argumente passen nicht zum Schema.", err.issues);
   }
   if (err instanceof ToolInputError) return new HttpError(err.status, err.code, err.message);
-  if (err instanceof LernSaxAuthError) {
+  if (err instanceof LernSaxAuthError || err instanceof LernSaxLoginError) {
     return new HttpError(502, "upstream_auth_failed", "LernSax hat die gespeicherte Anmeldung abgelehnt. Melde dich in der Weboberfläche neu an.");
   }
   if (err instanceof LernSaxError) return new HttpError(502, "upstream_error", err.message, { lernsax_code: err.code, method: err.method });
