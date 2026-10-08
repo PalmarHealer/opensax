@@ -345,5 +345,7 @@
 </nav>
 
 <ComposeWindow />
-<FeedbackWizard />
+{#if data.feedbackEnabled}
+  <FeedbackWizard />
+{/if}
 <OnboardingWizard open={data.showOnboarding} displayName={data.displayName} />

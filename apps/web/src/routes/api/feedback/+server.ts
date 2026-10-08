@@ -1,7 +1,7 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { getUserIdForSession } from "$lib/server/sessionStore";
-import { deliver, newReportId, serverContext, type Screenshot } from "$lib/server/feedbackSink";
+import { deliver, feedbackEnabled, newReportId, serverContext, type Screenshot } from "$lib/server/feedbackSink";
 import {
   FEEDBACK_TYPES,
   LIMITS,
@@ -61,6 +61,7 @@ function markdown(type: FeedbackType, fields: Record<string, string>, extras: { 
 }
 
 export const POST: RequestHandler = async ({ locals, cookies, request }) => {
+  if (!feedbackEnabled()) return json({ error: "Feedback ist auf diesem Server nicht eingerichtet." }, { status: 404 });
   let body: FeedbackPayload;
   try {
     body = await request.json();
