@@ -187,12 +187,14 @@ To bypass auth for local testing (e.g. with the MCP Inspector), set `LERNSAX_MCP
 
 ## Feedback (optional)
 
-The avatar menu's "Feedback / Fehler melden" wizard POSTs each report as JSON
-to `FEEDBACK_WEBHOOK_URL` — typically an n8n Webhook node, so where reports end
-up (GitHub issue, Nextcloud, mail …) is decided in the workflow. If
-`FEEDBACK_WEBHOOK_SECRET` is set it is sent as `X-OpenSax-Secret`; check it in
-the workflow (Header Auth). Without a URL, or when the webhook fails, reports
-are written to `/app/data/feedback/<id>.json` (+ `<id>.jpg`).
+The avatar menu's "Feedback / Fehler melden" entry only appears when **both**
+`FEEDBACK_WEBHOOK_URL` and `FEEDBACK_WEBHOOK_SECRET` are set; with either
+missing the entry is hidden and `/api/feedback` answers 404. The wizard POSTs
+each report as JSON to `FEEDBACK_WEBHOOK_URL` — typically an n8n Webhook node,
+so where reports end up (GitHub issue, Nextcloud, mail …) is decided in the
+workflow. The secret is sent as `X-OpenSax-Secret`; check it in the workflow
+(Header Auth). When the webhook fails, reports are written to
+`/app/data/feedback/<id>.json` (+ `<id>.jpg`) instead.
 
 The payload carries `id`, `type` (`bug` · `feature` · `feedback` · `question`),
 `title`, the answers in `fields`, `contact` (`method` `none` · `lernsax` ·
@@ -208,7 +210,7 @@ them out of anything public.
 |-------------------------|---------------------------------------------------|
 | `lernsax-web-data`      | Encrypted session blobs (`/app/data/sessions`) + connection records — OAuth connections and API tokens, token hashes only (`/app/data/connections`); shared between web and MCP. |
 | `lernsax-web-data` (onboarding) | One marker per account that the onboarding wizard was finished or skipped (`/app/data/onboarding`); no settings. |
-| `lernsax-web-data` (feedback) | Feedback reports, only when no webhook is configured or it failed (`/app/data/feedback`). |
+| `lernsax-web-data` (feedback) | Feedback reports, only when the webhook failed (`/app/data/feedback`). |
 | `onlyoffice-*`          | DocumentServer data, logs, file cache.            |
 
 Sessions and connections survive `docker compose down`/`up`; deleting the volume forces every user to re-authenticate.

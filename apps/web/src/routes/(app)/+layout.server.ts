@@ -4,6 +4,7 @@ import { userDisplay } from "@lernsax/core";
 import { GROUP_COOKIE, groupScope, routeHasGroups, scopesFor } from "$lib/nav";
 import { getUserIdForSession } from "$lib/server/sessionStore";
 import { getOnboarding } from "$lib/server/onboardingStore";
+import { feedbackEnabled } from "$lib/server/feedbackSink";
 
 /**
  * Put the remembered group back into the URL.
@@ -34,7 +35,7 @@ function rememberedGroup(
 
 export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
   const client = locals.client;
-  if (!client) return { user: null, displayName: "", email: "", groups: [], showOnboarding: false };
+  if (!client) return { user: null, displayName: "", email: "", groups: [], showOnboarding: false, feedbackEnabled: false };
   const u = client.whoami();
   const groups = client.groups().map((g) => ({
     login: g.login,
@@ -61,5 +62,7 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
       const user_id = getUserIdForSession(cookies.get("lernsax_sid") ?? null);
       return !!user_id && !getOnboarding(user_id);
     })(),
+    // Ohne Webhook-URL und -Secret gibt es keinen Feedback-Eintrag im Menü.
+    feedbackEnabled: feedbackEnabled(),
   };
 };
