@@ -4,7 +4,8 @@
   import Modal from "$lib/Modal.svelte";
 
   /**
-   * Bestätigung für eine destruktive Aktion — statt `window.confirm()`.
+   * Bestätigung für eine Aktion — statt `window.confirm()`. Standardmäßig
+   * destruktiv (roter Knopf); `tone="primary"` für Rückfragen ohne Datenverlust.
    *
    * Mit `action` enthält der Dialog das Formular selbst: `fields` landen als
    * versteckte Felder darin, „Bestätigen“ schickt es an `action`. Fehler zeigt
@@ -23,9 +24,14 @@
     fields?: Record<string, string>;
     onconfirm?: () => Promise<string | void>;
     confirmLabel?: string;
+    cancelLabel?: string;
+    tone?: "danger" | "primary";
     children: Snippet;
   }
-  let { open, onclose, title, action, fields = {}, onconfirm, confirmLabel = "Löschen", children }: Props = $props();
+  let {
+    open, onclose, title, action, fields = {}, onconfirm,
+    confirmLabel = "Löschen", cancelLabel = "Abbrechen", tone = "danger", children,
+  }: Props = $props();
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -56,8 +62,13 @@
     <p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>
   {/if}
   <div class="flex justify-end gap-2">
-    <button type="button" disabled={busy} onclick={onclose} class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 disabled:opacity-50">Abbrechen</button>
-    <button type="submit" disabled={busy} class="rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-400 disabled:opacity-60">
+    <button type="button" disabled={busy} onclick={onclose} class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 disabled:opacity-50">{cancelLabel}</button>
+    <button
+      type="submit"
+      disabled={busy}
+      class="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60
+        {tone === 'danger' ? 'bg-red-500 hover:bg-red-400' : 'bg-indigo-500 hover:bg-indigo-400'}"
+    >
       {busy ? "Bitte warten…" : confirmLabel}
     </button>
   </div>
