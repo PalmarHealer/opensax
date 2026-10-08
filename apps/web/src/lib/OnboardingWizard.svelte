@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { untrack, type Snippet } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import { fly, scale } from "svelte/transition";
   import { flip } from "svelte/animate";
   import { backOut, cubicOut } from "svelte/easing";
   import Icon from "$lib/Icon.svelte";
   import WizardFrame from "$lib/WizardFrame.svelte";
+  import ConfirmModal from "$lib/ConfirmModal.svelte";
   import { publicUrl } from "$lib/ConnectionsMcpUrl.svelte";
   import { motion } from "$lib/motion";
   import { NAV_TABS, loadNavConfig, saveNavConfig, tabById, mobileBottomTabs, type NavConfig, type NavMode, type NavTab } from "$lib/nav";
@@ -124,6 +125,9 @@
       // Clipboard verweigert — der Text bleibt markierbar.
     }
   }
+
+  /** Vor dem Überspringen nachfragen — danach erscheint das Onboarding auf keinem Gerät wieder. */
+  let confirmSkip = $state(false);
 
   async function finish(outcome: "completed" | "skipped") {
     closed = true;
@@ -339,7 +343,7 @@
 
 {#snippet footerNav()}
   {#if step.id !== "done"}
-    <button type="button" onclick={() => finish("skipped")} class="rounded-md px-2 py-1.5 text-sm text-zinc-500 hover:text-zinc-200">Überspringen</button>
+    <button type="button" onclick={() => (confirmSkip = true)} class="rounded-md px-2 py-1.5 text-sm text-zinc-500 hover:text-zinc-200">Überspringen</button>
   {:else}
     <span></span>
   {/if}
@@ -365,7 +369,7 @@
     title={step.title}
     stepCount={STEPS.length}
     {stepIndex}
-    onclose={() => finish(step.id === "done" ? "completed" : "skipped")}
+    onclose={() => (step.id === "done" ? finish("completed") : (confirmSkip = true))}
     closeLabel={step.id === "done" ? "Schließen" : "Onboarding überspringen"}
     scrollKey={stepIndex}
     footer={footerNav}
@@ -707,6 +711,27 @@
       </div>
     {/key}
   </WizardFrame>
+
+  <ConfirmModal
+    open={confirmSkip}
+    onclose={() => (confirmSkip = false)}
+    title="Einrichtung überspringen?"
+    tone="primary"
+    confirmLabel="Überspringen"
+    cancelLabel="Weiter einrichten"
+    onconfirm={async () => {
+      // Erst das Modal schließen, dann den Wizard: so gibt jeder die
+      // Scroll-Sperre der Seite in der richtigen Reihenfolge zurück.
+      confirmSkip = false;
+      await tick();
+      await finish("skipped");
+    }}
+  >
+    <p>Die Einrichtung wird dir danach nicht noch einmal angezeigt, auch nicht auf anderen Geräten.</p>
+    <p class="mt-2 text-zinc-500">
+      Was du bis hier eingestellt hast, bleibt. Alles andere findest du jederzeit im Avatar-Menü und unter Einstellungen.
+    </p>
+  </ConfirmModal>
 {/if}
 
 <style>

@@ -14,10 +14,13 @@
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onclose?.(); };
     document.addEventListener("keydown", onKey);
+    // Vorherigen Wert zurückgeben: liegt das Modal über einem anderen Dialog,
+    // soll die Seite dahinter gesperrt bleiben.
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
+      document.body.style.overflow = prevOverflow;
     };
   });
 </script>
