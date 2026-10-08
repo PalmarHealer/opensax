@@ -207,6 +207,7 @@ them out of anything public.
 | Volume                  | Contents                                          |
 |-------------------------|---------------------------------------------------|
 | `lernsax-web-data`      | Encrypted session blobs (`/app/data/sessions`) + connection records — OAuth connections and API tokens, token hashes only (`/app/data/connections`); shared between web and MCP. |
+| `lernsax-web-data` (onboarding) | One marker per account that the onboarding wizard was finished or skipped (`/app/data/onboarding`); no settings. |
 | `lernsax-web-data` (feedback) | Feedback reports, only when no webhook is configured or it failed (`/app/data/feedback`). |
 | `onlyoffice-*`          | DocumentServer data, logs, file cache.            |
 

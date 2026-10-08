@@ -3,6 +3,7 @@ import type { RequestHandler } from "./$types";
 import { listForUser } from "$lib/server/connectionStore";
 import { getUserIdForSession, listSessionsForUser } from "$lib/server/sessionStore";
 import { loadConfig as loadDavinciConfig } from "$lib/server/davinciStore";
+import { getOnboarding } from "$lib/server/onboardingStore";
 
 const COOKIE = "lernsax_sid";
 
@@ -103,10 +104,19 @@ export const GET: RequestHandler = async ({ cookies }) => {
           }
         : null,
     },
+    onboarding: {
+      present: !!(user_id && getOnboarding(user_id)),
+      scope: "pro LernSax-Account (geräteübergreifend)",
+      stored: [
+        "Ob du das Einrichtungs-Onboarding abgeschlossen oder übersprungen hast, und wann — damit es pro Account nur einmal erscheint",
+        "Keine Einstellungen: Theme und Navigation bleiben in deinem Browser",
+      ],
+      record: user_id ? getOnboarding(user_id) : null,
+    },
     // Funktionale Cookies, die der Browser selbst setzt — hier nur zur
     // Transparenz aufgeführt, der Server liest sie lediglich beim Rendern.
     browser: {
-      scope: "nur im Browser, nichts davon landet auf dem Server",
+      scope: "im Browser gespeichert. Cookies schickt der Browser bei jeder Anfrage mit, damit der Server die Seite passend rendert — gespeichert werden sie dort nicht. localStorage verlässt den Browser nie",
       cookies: [
         {
           name: "lernsax_group",
@@ -116,12 +126,15 @@ export const GET: RequestHandler = async ({ cookies }) => {
         },
         {
           name: "lernsax_theme",
-          purpose: "Hell/Dunkel, damit serverseitig gerenderte Ansichten im richtigen Design starten",
-          value: "„light“ oder „dark“",
+          purpose: "Kopie des gerade aktiven Designs, damit serverseitig gerenderte Ansichten (z. B. der Dokument-Editor) gleich richtig starten. Deine eigentliche Auswahl liegt im localStorage",
+          value: "„light“ oder „dark“ (bei „System“ das, was dein Gerät gerade nutzt)",
           ttl_days: 365,
         },
       ],
-      local_storage: ["Navigations-Layout und Reihenfolge der Tabs", "Theme-Einstellung"],
+      local_storage: [
+        "lernsax.nav.v2 — Navigations-Layout, Reihenfolge und ausgeblendete Tabs",
+        "lernsax.theme.v1 — Design-Auswahl: Hell, Dunkel oder System",
+      ],
     },
     cache: {
       contacts: { ttl_seconds: 60, scope: "im Arbeitsspeicher, pro Benutzer", stored: ["Login", "Anzeigename", "Online-Flag", "Gruppen"] },
@@ -153,7 +166,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
     not_stored: [
       "Mail-Inhalte, Anhänge, Dateien, Kalender-Einträge, Aufgaben (werden bei jeder Anfrage live von LernSax geholt — Ausnahme: die Arbeitskopie beim Bearbeiten im Office-Editor, s.o.)",
       "Inhalte von API- und MCP-Aufrufen (Argumente und Antworten werden durchgereicht, nicht protokolliert)",
-      "Browser-Einstellungen (Theme, Navigations-Layout, zuletzt geöffnete Gruppe) — die liegen im localStorage bzw. in funktionalen Cookies deines Browsers, nicht auf dem Server",
+      "Browser-Einstellungen (Theme, Navigations-Layout, zuletzt geöffnete Gruppe) — die liegen im localStorage bzw. in funktionalen Cookies deines Browsers; Cookies werden mitgeschickt, aber nicht gespeichert",
     ],
   });
 };

@@ -6,6 +6,7 @@
   import ConnectionsList from "$lib/ConnectionsList.svelte";
   import ConnectionsMcpUrl from "$lib/ConnectionsMcpUrl.svelte";
   import ApiTokens from "$lib/ApiTokens.svelte";
+  import Modal from "$lib/Modal.svelte";
   import { NAV_TABS, loadNavConfig, saveNavConfig, tabById, type NavConfig, type NavMode } from "$lib/nav";
 
   let { data, form } = $props();
@@ -39,6 +40,7 @@
     };
     office?: { scope: string; stored: string[] };
     feedback?: { scope: string; stored: string[] };
+    onboarding?: { present: boolean; scope: string; stored: string[]; record: { outcome: "completed" | "skipped"; at: number } | null };
     davinci?: {
       present: boolean;
       scope?: string;
@@ -68,8 +70,20 @@
   $effect(() => {
     if (tab === "account") loadStorage();
   });
+  // Export: passwords only on explicit request, with a warning — the file is
+  // the kind of thing people forward without thinking.
+  let exportOpen = $state(false);
+  let exportPw = $state({ lernsax: false, davinci: false });
+  const hasDavinci = $derived(storage?.davinci?.present ?? !!data.davinci);
+  const exportWithPasswords = $derived(exportPw.lernsax || (hasDavinci && exportPw.davinci));
+  function openExport() {
+    exportPw = { lernsax: false, davinci: false };
+    exportOpen = true;
+  }
   function downloadExport() {
-    window.location.href = "/api/account/export";
+    const pw = [exportPw.lernsax && "lernsax", hasDavinci && exportPw.davinci && "davinci"].filter(Boolean);
+    window.location.href = `/api/account/export${pw.length ? `?passwords=${pw.join(",")}` : ""}`;
+    exportOpen = false;
   }
   async function destroyAccount() {
     const r = await fetch("/api/account/destroy", { method: "POST" });
@@ -867,6 +881,18 @@
                 {/if}
               </div>
 
+              {#if storage.onboarding}
+                <div>
+                  <p class="font-medium">
+                    Onboarding ({storage.onboarding.record ? (storage.onboarding.record.outcome === "completed" ? `abgeschlossen am ${fmtTs(storage.onboarding.record.at)}` : `übersprungen am ${fmtTs(storage.onboarding.record.at)}`) : "noch nicht durchlaufen"})
+                  </p>
+                  <p class="text-xs text-zinc-500">{storage.onboarding.scope}.</p>
+                  <ul class="mt-1 space-y-0.5 text-xs text-zinc-500">
+                    {#each storage.onboarding.stored as line}<li>· {line}</li>{/each}
+                  </ul>
+                </div>
+              {/if}
+
               {#if storage.feedback}
                 <div>
                   <p class="font-medium">Feedback-Meldungen</p>
@@ -924,7 +950,7 @@
 
           <div class="mt-5 flex flex-wrap gap-2">
             <button
-              onclick={downloadExport}
+              onclick={openExport}
               class="rounded-md border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-sm font-medium hover:bg-zinc-800"
             >Daten herunterladen</button>
             {#if !confirming}
@@ -949,3 +975,44 @@
     </div>
   </section>
 </div>
+
+<Modal open={exportOpen} onclose={() => (exportOpen = false)} title="Daten herunterladen" width="max-w-lg">
+  <div class="space-y-4 text-sm">
+    <p class="text-zinc-300">
+      Du bekommst eine JSON-Datei mit allem, was OpenSax zu deinem Account speichert. Passwörter sind standardmäßig
+      <span class="font-medium">nicht</span> enthalten.
+    </p>
+    <div class="space-y-2">
+      <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-800 px-3 py-2.5 hover:bg-zinc-900">
+        <input type="checkbox" class="mt-1 accent-red-500" bind:checked={exportPw.lernsax} />
+        <span>
+          <span class="block font-medium">LernSax-Passwort mitexportieren</span>
+          <span class="block text-xs text-zinc-500">Im Klartext, neben deiner Login-Adresse.</span>
+        </span>
+      </label>
+      {#if hasDavinci}
+        <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-800 px-3 py-2.5 hover:bg-zinc-900">
+          <input type="checkbox" class="mt-1 accent-red-500" bind:checked={exportPw.davinci} />
+          <span>
+            <span class="block font-medium">Stundenplan-Passwort mitexportieren</span>
+            <span class="block text-xs text-zinc-500">Zugang zum Stundenplan-Server deiner Schule, im Klartext.</span>
+          </span>
+        </label>
+      {/if}
+    </div>
+    {#if exportWithPasswords}
+      <div class="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2.5 text-xs text-red-200">
+        <p class="font-medium">Achtung: Die Datei enthält dann ein Passwort im Klartext.</p>
+        <p class="mt-1">Wer sie bekommt, kann sich mit deinem Account anmelden. Schick sie niemandem weiter, lade sie nirgends hoch und lösche sie, wenn du sie nicht mehr brauchst.</p>
+      </div>
+    {/if}
+  </div>
+  {#snippet footer()}
+    <button type="button" onclick={() => (exportOpen = false)} class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100">Abbrechen</button>
+    <button
+      type="button"
+      onclick={downloadExport}
+      class="rounded-md px-3 py-1.5 text-sm font-medium text-white {exportWithPasswords ? 'bg-red-500 hover:bg-red-400' : 'bg-indigo-500 hover:bg-indigo-400'}"
+    >{exportWithPasswords ? "Mit Passwort herunterladen" : "Herunterladen"}</button>
+  {/snippet}
+</Modal>
