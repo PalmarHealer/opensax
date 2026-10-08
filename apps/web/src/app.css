@@ -50,7 +50,9 @@ html.light .divide-zinc-900 > * { border-color: rgb(228 228 231 / 1); }
    fine on near-black but wash out to nothing on a light background, and the
    /5–/15 tints disappear entirely. Darken the text, strengthen the tint. */
 html.light .text-rose-300,    html.light .text-rose-200    { color: rgb(159 18 57); }
-html.light .text-amber-300                                 { color: rgb(146 64 14); }
+html.light .text-amber-300,   html.light .text-amber-200   { color: rgb(146 64 14); }
+html.light .text-amber-300\/80                             { color: rgb(146 64 14 / 0.9); }
+html.light .text-rose-300\/80                              { color: rgb(159 18 57 / 0.85); }
 html.light .text-sky-300                                   { color: rgb(7 89 133); }
 html.light .text-emerald-300                               { color: rgb(6 95 70); }
 html.light .text-violet-300                                { color: rgb(91 33 182); }

@@ -288,9 +288,9 @@
 
 {#snippet discardBanner()}
   {#if confirmDiscard}
-    <div class="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-5 py-2.5 text-sm">
-      <span class="text-amber-200">Deine Eingaben verwerfen?</span>
-      <div class="flex gap-2">
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-amber-500/30 bg-amber-500/10 px-5 py-2.5 text-sm" role="alertdialog" aria-label="Eingaben verwerfen?">
+      <span class="font-medium text-amber-200">Deine Eingaben verwerfen?</span>
+      <div class="ml-auto flex gap-2">
         <button type="button" class="rounded-md px-2 py-1 text-zinc-300 hover:text-zinc-100" onclick={() => (confirmDiscard = false)}>Weiter bearbeiten</button>
         <button type="button" class="rounded-md bg-amber-500/20 px-2 py-1 text-amber-200 hover:bg-amber-500/30" onclick={() => feedback.close()}>Verwerfen</button>
       </div>
@@ -416,7 +416,7 @@
             </button>
           {/if}
           {#if include.screenshot}
-            <p class="pl-1 text-xs text-amber-300/80">Auf dem Bild können Namen, Mails oder Dateien zu sehen sein — schneide es bei Bedarf zu.</p>
+            <p class="pl-1 text-xs text-amber-300">Auf dem Bild können Namen, Mails oder Dateien zu sehen sein — schneide es bei Bedarf zu.</p>
           {/if}
         </div>
 
@@ -445,7 +445,7 @@
 
         <!-- Account -->
         <div class="space-y-2">
-          {@render toggle("account", "Meine Account-Daten", "Name, LernSax-Login, Schule und Klassen — hilft bei Problemen mit einem bestimmten Account", "user")}
+          {@render toggle("account", "Meine Account-Daten", "Name, LernSax-Login, Schule und Klassen — hilft bei Problemen mit einem bestimmten Account. Ohne Passwort.", "user")}
           {#if include.account}
             <div class="rounded-md border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
               {#if ctx}
@@ -455,6 +455,11 @@
               {:else}
                 <p>{ctxError ? "Konnte nicht geladen werden — wird beim Senden vom Server ergänzt." : "Wird geladen…"}</p>
               {/if}
+              <!-- Steht hier, weil „Account-Daten“ nach Zugangsdaten klingt. Der
+                   Server schickt nur, was serverContext() in `account` einträgt. -->
+              <p class="mt-2 border-t border-zinc-800 pt-2 text-zinc-500">
+                Passwörter werden nicht übermittelt — weder dein LernSax-Passwort noch die Zugangsdaten für den Stundenplan.
+              </p>
             </div>
           {/if}
         </div>

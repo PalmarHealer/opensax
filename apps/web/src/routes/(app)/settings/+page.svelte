@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import type { SubmitFunction } from "@sveltejs/kit";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Icon from "$lib/Icon.svelte";
@@ -74,6 +75,21 @@
   // the kind of thing people forward without thinking.
   let exportOpen = $state(false);
   let exportPw = $state({ lernsax: false, davinci: false });
+
+  // Speichern geht über LernSax bzw. den DaVinci-Server und dauert gern ein
+  // paar Sekunden. Ohne Anzeige wirkt der Klick, als sei er nicht angekommen.
+  /** Welches Formular gerade abgeschickt ist — `davinci-clear` für „Entfernen“. */
+  let busy = $state<"profile" | "signature" | "davinci" | "davinci-clear" | null>(null);
+  const submitting = (key: "profile" | "signature" | "davinci"): SubmitFunction => ({ submitter }) => {
+    busy = submitter?.getAttribute("formaction")?.includes("clearDavinci") ? "davinci-clear" : key;
+    return async ({ update }) => {
+      // Kein Zurücksetzen: die Felder tragen die gespeicherten Werte nur als
+      // Startwert, ein Reset leerte sie nach dem Speichern — und ein zweites
+      // Speichern hätte die leeren Felder und abgehakten Häkchen übernommen.
+      await update({ reset: false });
+      busy = null;
+    };
+  };
   const hasDavinci = $derived(storage?.davinci?.present ?? !!data.davinci);
   const exportWithPasswords = $derived(exportPw.lernsax || (hasDavinci && exportPw.davinci));
   function openExport() {
@@ -269,6 +285,20 @@
   }
 </script>
 
+{#snippet saveButton(key: "profile" | "signature" | "davinci", label: string, busyLabel: string)}
+  <button
+    disabled={busy !== null}
+    class="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400 disabled:cursor-wait disabled:opacity-70"
+  >
+    {#if busy === key}
+      <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+      {busyLabel}
+    {:else}
+      {label}
+    {/if}
+  </button>
+{/snippet}
+
 <div class="grid h-full grid-cols-1 md:[grid-template-columns:240px_1fr]">
   <!-- Section nav: collapsible <details> on mobile, static rail at md+ -->
   <details class="border-b border-zinc-800 bg-zinc-900/30 md:hidden">
@@ -310,7 +340,7 @@
     <div class="mx-auto max-w-2xl px-4 py-4 md:px-8 md:py-8">
       {#if tab === "profile"}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Profil</h2>
-        <form method="POST" action="?/saveProfile" use:enhance class="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <form method="POST" action="?/saveProfile" use:enhance={submitting("profile")} aria-busy={busy === "profile"} class="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <fieldset>
             <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Name</legend>
             <div class="grid grid-cols-2 gap-3">
@@ -431,16 +461,18 @@
             </div>
           </fieldset>
 
-          {#if form?.ok && form?.scope === "profile"}<p class="text-xs text-emerald-400">Gespeichert.</p>{/if}
-          {#if form?.error}<p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>{/if}
+          {#if busy !== "profile" && form?.scope === "profile"}
+            {#if form?.ok}<p class="text-xs text-emerald-400" role="status">Gespeichert.</p>{/if}
+            {#if form?.error}<p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>{/if}
+          {/if}
 
           <div class="flex justify-end pt-2">
-            <button class="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400">Speichern</button>
+            {@render saveButton("profile", "Speichern", "Speichere …")}
           </div>
         </form>
       {:else if tab === "mail"}
         <h2 class="mb-4 text-xl font-semibold tracking-tight">Mail</h2>
-        <form method="POST" action="?/saveSignature" use:enhance class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <form method="POST" action="?/saveSignature" use:enhance={submitting("signature")} aria-busy={busy === "signature"} class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-400">Signatur</h3>
           <p class="text-xs text-zinc-500">Wird automatisch beim Antworten und Weiterleiten angefügt.</p>
           <textarea name="text" rows="8" class="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-indigo-500" placeholder="-- &#10;Vorname Nachname&#10;…">{data.signature.text}</textarea>
@@ -460,9 +492,12 @@
               </select>
             </label>
           </div>
-          {#if form?.ok && form?.scope === "signature"}<p class="text-xs text-emerald-400">Gespeichert.</p>{/if}
+          {#if busy !== "signature" && form?.scope === "signature"}
+            {#if form?.ok}<p class="text-xs text-emerald-400" role="status">Gespeichert.</p>{/if}
+            {#if form?.error}<p class="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{form.error}</p>{/if}
+          {/if}
           <div class="flex justify-end pt-1">
-            <button class="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400">Speichern</button>
+            {@render saveButton("signature", "Speichern", "Speichere …")}
           </div>
         </form>
 
@@ -480,7 +515,7 @@
         <!-- `tab` rides along in the action URL so a submit that isn't enhanced
              (no JS yet, stale tab) still comes back to this tab instead of
              dumping the user on Profil with an orphaned error. -->
-        <form method="POST" action="?/saveDavinci&tab=timetable" use:enhance class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <form method="POST" action="?/saveDavinci&tab=timetable" use:enhance={submitting("davinci")} aria-busy={busy === "davinci" || busy === "davinci-clear"} class="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <label class="block">
             <span class="mb-1 block text-xs text-zinc-400">Endpoint</span>
             <input
@@ -569,13 +604,17 @@
             </label>
           </fieldset>
 
-          {#if form?.scope === "davinci" && form?.error}
+          {#if busy === "davinci"}
+            <div class="flex items-center gap-2 rounded-lg border border-zinc-800 p-3 text-xs text-zinc-400" role="status">
+              <span class="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-indigo-400"></span>
+              Verbinde mit dem Stundenplan-Server … das kann einige Sekunden dauern.
+            </div>
+          {:else if form?.scope === "davinci" && form?.error}
             <p class="text-xs text-rose-400">{form.error}</p>
-          {/if}
-          {#if form?.ok && form?.scope === "davinci"}
-            <div class="rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3 text-xs text-emerald-300">
+          {:else if form?.ok && form?.scope === "davinci"}
+            <div class="rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3 text-xs text-emerald-300" role="status">
               <p class="font-medium">Verbunden.</p>
-              <p class="mt-1 text-emerald-300/80">
+              <p class="mt-1 text-zinc-400">
                 {form.info?.scheduleDescription ?? "Stundenplan"} ·
                 {form.info?.lessonCount ?? 0} Unterrichtsserien ·
                 Profil „{form.info?.profile ?? "?"}"
@@ -583,7 +622,7 @@
               </p>
             </div>
           {/if}
-          {#if form?.ok && form?.scope === "davinci-cleared"}
+          {#if form?.ok && form?.scope === "davinci-cleared" && busy !== "davinci-clear"}
             <p class="text-xs text-zinc-400">Verbindung entfernt.</p>
           {/if}
 
@@ -591,14 +630,13 @@
             {#if data.davinci}
               <button
                 formaction="?/clearDavinci&tab=timetable"
-                class="rounded-md border border-zinc-800 px-4 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+                disabled={busy !== null}
+                class="rounded-md border border-zinc-800 px-4 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-50"
               >
-                Entfernen
+                {busy === "davinci-clear" ? "Entferne …" : "Entfernen"}
               </button>
             {/if}
-            <button class="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium hover:bg-indigo-400">
-              Testen &amp; speichern
-            </button>
+            {@render saveButton("davinci", "Testen & speichern", "Teste …")}
           </div>
         </form>
       {:else if tab === "connections"}
