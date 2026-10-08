@@ -191,7 +191,7 @@ export function touchSession(id: string, ip?: string): void {
 
 export function destroySession(id: string): void {
   const s = sessions.get(id);
-  if (s?.client) s.client.logout().catch(() => {});
+  if (s) signOut(s);
   sessions.delete(id);
   unpersist(id);
   // Connections live one level up — they're tied to the LernSax account, not
@@ -203,7 +203,7 @@ export function destroySession(id: string): void {
 export function destroySessionsForUser(user_id: string): void {
   for (const [id, s] of sessions) {
     if (s.user_id !== user_id) continue;
-    if (s.client) s.client.logout().catch(() => {});
+    signOut(s);
     sessions.delete(id);
     unpersist(id);
   }
@@ -219,6 +219,23 @@ function decryptCreds(s: StoredSession): Credentials {
   decipher.setAuthTag(s.tag);
   const out = Buffer.concat([decipher.update(s.encCreds), decipher.final()]);
   return JSON.parse(out.toString("utf8")) as Credentials;
+}
+
+/**
+ * End a device's LernSax session. A 2FA login left an auth token in LernSax;
+ * delete it too, or every sign-in would leave one more trust behind.
+ */
+function signOut(s: StoredSession): void {
+  void (async () => {
+    let client = s.client;
+    if (!client) {
+      const creds = decryptCreds(s);
+      if (!creds.trustToken) return;
+      client = new LernSaxClient(creds);
+    }
+    await client.session.revokeTrust();
+    await client.logout();
+  })().catch(() => {});
 }
 
 export async function getClientForSession(id: string | null): Promise<LernSaxClient | null> {
@@ -292,7 +309,7 @@ export function revokeDeviceForUser(user_id: string, device_id: string): boolean
   for (const [sid, s] of sessions) {
     if (s.user_id !== user_id) continue;
     if (deviceIdOf(sid) !== device_id) continue;
-    if (s.client) s.client.logout().catch(() => {});
+    signOut(s);
     sessions.delete(sid);
     unpersist(sid);
     return true;

@@ -1,9 +1,19 @@
 import type { Handle } from "@sveltejs/kit";
+import { LernSaxError, LernSaxLoginError, LernSaxTransportError } from "@lernsax/core";
 import { getClientForSession, destroySession, touchSession } from "$lib/server/sessionStore";
 import { clientIp, rateLimit } from "$lib/server/rateLimit";
 
 const COOKIE = "lernsax_sid";
 const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout"]);
+
+const UNREACHABLE_PAGE = `<!doctype html><html lang="de"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>LernSax nicht erreichbar</title>
+<body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#09090b;color:#e4e4e7;font:15px/1.5 system-ui,sans-serif">
+<div style="max-width:28rem;padding:1.5rem;text-align:center">
+<h1 style="font-size:1.15rem;margin:0 0 .5rem">LernSax antwortet gerade nicht</h1>
+<p style="color:#a1a1aa;margin:0 0 1.25rem">Du bist weiterhin angemeldet. Versuch es in ein paar Sekunden noch einmal.</p>
+<a href="" style="display:inline-block;background:#6366f1;color:#fff;padding:.5rem 1rem;border-radius:.5rem;text-decoration:none">Neu laden</a>
+</div></body></html>`;
 
 // Endpoints we deliberately allow cross-origin POSTs to (OAuth machinery).
 const CSRF_BYPASS = new Set(["/oauth/token", "/oauth/register", "/oauth/revoke", "/oauth/userinfo"]);
@@ -63,6 +73,12 @@ export const handle: Handle = async ({ event, resolve }) => {
   const sid = event.cookies.get(COOKIE) ?? null;
   event.locals.sessionId = sid;
   event.locals.client = null;
+  // LernSax turned the stored login down (password changed, 2FA switched on,
+  // token revoked) — the login page says so instead of failing silently.
+  let reloginRejected = false;
+  // LernSax didn't answer properly. The stored login is probably fine, so the
+  // session survives and this request gets a 503 instead of a logout.
+  let lernsaxDown = false;
 
   if (sid) {
     try {
@@ -74,10 +90,18 @@ export const handle: Handle = async ({ event, resolve }) => {
         touchSession(sid, ip);
       }
     } catch (err) {
-      console.warn("[hooks] failed to revive session, clearing cookie", err);
-      destroySession(sid);
-      event.cookies.delete(COOKIE, { path: "/" });
-      event.locals.sessionId = null;
+      reloginRejected = err instanceof LernSaxLoginError;
+      // Only a rejected login or credentials we can't decrypt end the session.
+      // Network trouble and odd server replies are worth another try later.
+      lernsaxDown = !reloginRejected && (err instanceof LernSaxTransportError || err instanceof LernSaxError);
+      if (lernsaxDown) {
+        console.warn("[hooks] LernSax unreachable while reviving session, keeping it", err);
+      } else {
+        console.warn("[hooks] failed to revive session, clearing cookie", err);
+        destroySession(sid);
+        event.cookies.delete(COOKIE, { path: "/" });
+        event.locals.sessionId = null;
+      }
     }
   }
 
@@ -96,14 +120,27 @@ export const handle: Handle = async ({ event, resolve }) => {
   const isApi = path === "/api/v1" || path.startsWith("/api/v1/");
   const isPublic = PUBLIC_PATHS.has(path) || path.startsWith("/_") || path === "/favicon.svg"
     || isOoEndpoint || isOauthPublic || isApi;
+  if (lernsaxDown && !isPublic) {
+    if (path.startsWith("/api/")) {
+      return new Response(JSON.stringify({ error: "lernsax_unreachable" }), {
+        status: 503,
+        headers: { "content-type": "application/json", "retry-after": "30" },
+      });
+    }
+    return new Response(UNREACHABLE_PAGE, {
+      status: 503,
+      headers: { "content-type": "text/html; charset=utf-8", "retry-after": "30" },
+    });
+  }
   if (!event.locals.client && !isPublic) {
     if (path.startsWith("/api/")) {
-      return new Response(JSON.stringify({ error: "unauthenticated" }), {
+      return new Response(JSON.stringify({ error: reloginRejected ? "relogin_rejected" : "unauthenticated" }), {
         status: 401,
         headers: { "content-type": "application/json" },
       });
     }
-    return new Response(null, { status: 303, headers: { location: `/login?next=${encodeURIComponent(path)}` } });
+    const reason = reloginRejected ? "&reason=relogin" : "";
+    return new Response(null, { status: 303, headers: { location: `/login?next=${encodeURIComponent(path)}${reason}` } });
   }
 
   const response = await resolve(event);
