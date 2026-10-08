@@ -2,13 +2,15 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { destroySession, destroySessionsForUser, getUserIdForSession } from "$lib/server/sessionStore";
 import { clearConfig as clearDavinciConfig } from "$lib/server/davinciStore";
+import { clearOnboarding } from "$lib/server/onboardingStore";
 import { GROUP_COOKIE } from "$lib/nav";
 
 const COOKIE = "lernsax_sid";
 
 /**
  * Wipe everything the server has on file for the calling LernSax account:
- * encrypted credentials of every device session, the timetable login, all
+ * encrypted credentials of every device session, the timetable login, the
+ * onboarding marker, all
  * OAuth/MCP connections and API tokens (both live in the connection store),
  * and the auth cookie of the calling browser. Other
  * devices on the same account also lose access — that's the point of "Alle
@@ -23,6 +25,7 @@ export const POST: RequestHandler = async ({ cookies }) => {
     // leaving it behind would keep a second set of credentials (the school's)
     // on disk after the user asked for everything to go.
     clearDavinciConfig(user_id);
+    clearOnboarding(user_id);
   } else if (sid) destroySession(sid);
   cookies.delete(COOKIE, { path: "/" });
   cookies.delete(GROUP_COOKIE, { path: "/" });

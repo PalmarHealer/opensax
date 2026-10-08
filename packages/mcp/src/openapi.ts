@@ -78,7 +78,7 @@ const errorResponse = (description: string) => ({
 function operation(t: ToolDef) {
   const schema = objectSchema(t.shape);
   const hasRequired = Array.isArray(schema.required) && schema.required.length > 0;
-  const success = t.name === "files_download"
+  const success = t.returnsFile
     ? {
         description: "Der Dateiinhalt. Name und Typ stehen in `Content-Disposition` und `Content-Type`.",
         content: { "application/octet-stream": { schema: { type: "string", contentMediaType: "application/octet-stream" } } },

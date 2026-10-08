@@ -1,3 +1,10 @@
+<script lang="ts" module>
+  /** Public address of a path on this app; MCP and API share the web app's hostname (/mcp, /api/v1). */
+  export function publicUrl(path: string): string {
+    return `${location.origin.replace(/^https?:\/\/(www\.)?/, "https://")}${path}`;
+  }
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
@@ -6,8 +13,7 @@
   let url = $state("");
   let copied = $state(false);
   onMount(() => {
-    // MCP and API share the web app's hostname (/mcp, /api/v1).
-    url = `${location.origin.replace(/^https?:\/\/(www\.)?/, "https://")}${path}`;
+    url = publicUrl(path);
   });
   async function copy() {
     try {

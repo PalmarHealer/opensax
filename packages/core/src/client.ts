@@ -64,7 +64,7 @@ export class LernSaxClient {
     this.webdav = new WebDavClient(credentials, webdavOpts);
     this.web = new LernSaxWebClient(credentials, webOpts);
 
-    this.mail = new MailApi(this.session);
+    this.mail = new MailApi(this.session, sessionOpts.fetchImpl);
     this.tasks = new TasksApi(this.session);
     this.calendar = new CalendarApi(this.session);
     this.board = new BoardApi(this.session);

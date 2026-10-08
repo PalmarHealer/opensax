@@ -4,6 +4,7 @@
   import Icon from "$lib/Icon.svelte";
   import ComposeWindow from "$lib/ComposeWindow.svelte";
   import FeedbackWizard from "$lib/FeedbackWizard.svelte";
+  import OnboardingWizard from "$lib/OnboardingWizard.svelte";
   import AvatarMenu from "$lib/AvatarMenu.svelte";
   import { NAV_TABS, GROUP_COOKIE, loadNavConfig, scopesFor, groupScope, tabById, titleFor, mobileBottomTabs, type NavConfig } from "$lib/nav";
   import { theme } from "$lib/themeStore.svelte";
@@ -344,4 +345,7 @@
 </nav>
 
 <ComposeWindow />
-<FeedbackWizard />
+{#if data.feedbackEnabled}
+  <FeedbackWizard />
+{/if}
+<OnboardingWizard open={data.showOnboarding} displayName={data.displayName} />

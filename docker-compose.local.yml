@@ -20,8 +20,8 @@ services:
       # Proxies in front of this container that append to X-Forwarded-For;
       # the client IP is read that many entries from the right (0 = no proxy).
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
-      # Feedback wizard: reports are POSTed here (e.g. an n8n webhook). Unset
-      # = they are stored under /app/data/feedback instead.
+      # Feedback wizard: reports are POSTed here (e.g. an n8n webhook) with the
+      # secret as X-OpenSax-Secret. Both unset/either missing = no menu entry.
       FEEDBACK_WEBHOOK_URL: ${FEEDBACK_WEBHOOK_URL:-}
       FEEDBACK_WEBHOOK_SECRET: ${FEEDBACK_WEBHOOK_SECRET:-}
     ports:

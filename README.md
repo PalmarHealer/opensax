@@ -56,7 +56,8 @@ LERNSAX_WEB_SESSION_KEY=<32+ char secret>
 | **Chat** | Discord-Style Bubbles · Konversationsliste mit Last-Message-Preview · Neuer Chat aus Gruppen-Mitgliedern (Online-Indikator + Suche) oder manueller Email · Aktiver Chat in URL `?with=` |
 | **Dateien** | Drive-Browser mit Drag&Drop-Upload · Quota-Bar · Click-anywhere auf Zeile · **Inline-Preview** für PDF/Bild/Text via Server-Proxy (kein Fullscreen) · Datei erscheint als "Sub-Ordner" im Breadcrumb · **Breadcrumb-Trenner aufklappbar** — jeder Pfeil zeigt die Ordner auf der Ebene der Krume dahinter (beim Datei-Pfeil: die Dateien im Ordner), Seitwärtswechsel in einem Klick · Forced-Save-Download · Mkdir/Rename/Delete |
 | **Stundenplan** | Wochenraster aus **DaVinci** (nicht LernSax) — Zeilen sind Stundenblöcke, dieselbe Stunde liegt über alle Tage auf gleicher Höhe · Vertretungen, Entfall und Verlegungen farbig markiert, geteilte Klassen nebeneinander · Auto-Filter auf die eigene Klasse bzw. Lehrkraft · **Zeitbezug live**: die laufende Stunde zeigt ihre Restzeit („noch 23 min"), in Pausen und vor Schulbeginn kündigt sich stattdessen die nächste an („in 15 min", höchstens eine Stunde im Voraus) — beides aus der Browser-Uhr im 30-s-Takt, nicht vom Server · am Wochenende öffnet die **kommende** Woche statt der abgelaufenen · mobil dieselbe Anordnung als Tagesliste · Zugang pro Nutzer, verschlüsselt in Settings hinterlegt · auch über MCP abrufbar |
-| **Feedback** | Im Avatar-Menü · Wizard, der sich nach der Art richtet (Fehler / Wunsch / Feedback / Frage) · optional: automatischer Screenshot mit Zuschneiden, Browser-Logs, technische Infos ohne Namen, Account-Daten · Kontakt per LernSax-Mail, eigener Mail/Nummer oder gar nicht (Standard) · Vorschau, was genau gesendet wird · Versand an `FEEDBACK_WEBHOOK_URL` (z. B. n8n), sonst lokal gespeichert |
+| **Onboarding** | Nach dem ersten Login, einmal pro Account (serverseitig vermerkt, in Export und Datenübersicht) · Wizard: Design, Navigations-Layout, Bereiche ein-/ausblenden und sortieren, Hinweis auf MCP · gilt sofort, jederzeit überspringbar · am Ende Hinweis, wo man alles in den Einstellungen findet |
+| **Feedback** | Im Avatar-Menü · Wizard, der sich nach der Art richtet (Fehler / Wunsch / Feedback / Frage) · optional: automatischer Screenshot mit Zuschneiden, Browser-Logs, technische Infos ohne Namen, Account-Daten · Kontakt per LernSax-Mail, eigener Mail/Nummer oder gar nicht (Standard) · Vorschau, was genau gesendet wird · Versand an `FEEDBACK_WEBHOOK_URL` (z. B. n8n) mit `FEEDBACK_WEBHOOK_SECRET`; fehlt eins von beiden, gibt es den Eintrag nicht |
 | **Settings** | Tab-Rail mit URL-State `?tab=` · Profil mit allen LernSax-Feldern · Mail-Signatur · **Stundenplan-Zugang** (Endpoint/Login mit Verbindungstest) · **Layout-Picker** (Sidenav vs. Topnav) · **Drag&Drop Tab-Reordering** mit Live-Shift, Drop-into-Hidden-Zone |
 
 ### Stundenplan-Datenquellen
@@ -245,7 +246,7 @@ MCP-Endpoint; dort sieht der Client nur die freigegebenen Tools. Der Scope
 - Fehler immer als `{ "error": { "code", "message", "details?" } }`
 - 120 Anfragen pro Minute und Token (`LERNSAX_API_RATE_PER_MIN`), 30 fehlgeschlagene
   Anmeldungen pro Minute und IP (`LERNSAX_API_AUTH_FAIL_PER_MIN`)
-- `files_download` liefert die Datei selbst statt Base64
+- `files_download` und `mail_attachment_download` liefern die Datei selbst statt Base64
 
 Ausgeliefert wird die API vom MCP-Container; die Web-App reicht `/api/v1/*`
 an `LERNSAX_MCP_INTERNAL_URL` (Default `http://lernsax-mcp:8765`) weiter, eine

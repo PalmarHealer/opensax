@@ -1,12 +1,14 @@
 /**
  * Where feedback reports go.
  *
- * With `FEEDBACK_WEBHOOK_URL` set, each report is POSTed there as JSON (an n8n
- * Webhook node, typically — the routing to GitHub, Nextcloud, mail … lives in
- * the workflow, not here). `FEEDBACK_WEBHOOK_SECRET`, if set, travels in the
- * `X-OpenSax-Secret` header so the workflow can reject strangers.
+ * Feedback is optional: only with both `FEEDBACK_WEBHOOK_URL` and
+ * `FEEDBACK_WEBHOOK_SECRET` set does the avatar menu offer it at all. Each
+ * report is then POSTed to the URL as JSON (an n8n Webhook node, typically —
+ * the routing to GitHub, Nextcloud, mail … lives in the workflow, not here),
+ * with the secret in the `X-OpenSax-Secret` header so the workflow can reject
+ * strangers.
  *
- * Without a webhook, or when it fails, the report lands on disk instead
+ * When the webhook fails, the report lands on disk instead
  * (`<data>/feedback/<id>.json` + screenshot) so nothing a user took the time
  * to write is lost.
  */
@@ -24,6 +26,11 @@ const STORE_DIR = env.FEEDBACK_DIR
   ?? (process.env.NODE_ENV === "production" ? "/app/data/feedback" : "./.session-store/feedback");
 
 const WEBHOOK_TIMEOUT_MS = 15_000;
+
+/** Both variables set — otherwise the menu entry and the API are off. */
+export function feedbackEnabled(): boolean {
+  return !!env.FEEDBACK_WEBHOOK_URL && !!env.FEEDBACK_WEBHOOK_SECRET;
+}
 
 export function newReportId(): string {
   const day = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -72,8 +79,10 @@ function saveToDisk(report: Record<string, unknown> & { id: string }, shot: Scre
 }
 
 async function postWebhook(url: string, report: Record<string, unknown> & { id: string }, shot: Screenshot | null): Promise<void> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (env.FEEDBACK_WEBHOOK_SECRET) headers["x-opensax-secret"] = env.FEEDBACK_WEBHOOK_SECRET;
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-opensax-secret": env.FEEDBACK_WEBHOOK_SECRET ?? "",
+  };
   const body = {
     ...report,
     screenshot: shot
